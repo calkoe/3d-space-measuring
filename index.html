@@ -44,12 +44,14 @@
     z-index: 0;
     overflow: hidden;
   }
-  video { display: none; }
-  #canvas {
+  #video, #canvas {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
   }
+  #canvas { pointer-events: none; }
 
   /* RESPONSIVE VIEWPORT SHELL (Vollbild in iOS Safari & Home-Screen PWA ohne Abschneiden) */
   #uiShell {
@@ -900,7 +902,7 @@ const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const ctx = canvas.getContext("2d");
 const sphereCtx = document.getElementById("sphereCanvas").getContext("2d");
 const gizmoCtx = document.getElementById("gizmoCanvas").getContext("2d");
 
@@ -939,9 +941,14 @@ function showToast(msg) {
 }
 function openDrawer(el) { closeDrawers(); backdrop.classList.add("open"); el.classList.add("open"); }
 function closeDrawers() {
+  const wasOpen = settingsDrawer.classList.contains("open") || detailsDrawer.classList.contains("open");
   backdrop.classList.remove("open");
   settingsDrawer.classList.remove("open");
   detailsDrawer.classList.remove("open");
+  if (wasOpen && streaming && capturePhase === "idle") {
+    lastDetectMs = 0;
+    scheduleNextLoop(0);
+  }
 }
 backdrop.addEventListener("click", closeDrawers);
 btnSettings.addEventListener("click", () => { updateCalInfo(); openDrawer(settingsDrawer); });
@@ -1237,7 +1244,7 @@ function readMatFloats(mat) {
   return mat.depth() === cv.CV_64F ? Array.from(mat.data64F) : Array.from(mat.data32F);
 }
 
-function detectMarkersJS(gray) {
+function detectMarkersJS(gray, highRes = false) {
   const thresh = new cv.Mat();
   const contours = new cv.MatVector();
   const hierarchy = new cv.Mat();
@@ -1254,7 +1261,7 @@ function detectMarkersJS(gray) {
     const minArea = Math.max(180, (gray.rows * gray.cols) * 0.0005);
     const maxArea = (gray.rows * gray.cols) * 0.65;
     let quadChecks = 0;
-    const maxQuads = 120;
+    const maxQuads = highRes ? 120 : 55;
 
     for (let i = 0; i < contours.size() && quadChecks < maxQuads; i++) {
       const cnt = contours.get(i);
@@ -1303,16 +1310,18 @@ function detectMarkersJS(gray) {
             const shift = hit.rot % 4;
             const ordered = [0, 1, 2, 3].map(idx => pts[(idx + shift) % 4]);
             let refined = ordered;
-            let sp = null;
-            try {
-              sp = cv.matFromArray(4, 1, cv.CV_32FC2, ordered.flat());
-              cv.cornerSubPix(gray, sp, new cv.Size(5, 5), new cv.Size(-1, -1),
-                new cv.TermCriteria(cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 15, 0.1));
-              refined = [];
-              for (let k = 0; k < 4; k++) refined.push([sp.data32F[k * 2], sp.data32F[k * 2 + 1]]);
-            } catch (_) {
-            } finally {
-              if (sp) sp.delete();
+            if (highRes) {
+              let sp = null;
+              try {
+                sp = cv.matFromArray(4, 1, cv.CV_32FC2, ordered.flat());
+                cv.cornerSubPix(gray, sp, new cv.Size(5, 5), new cv.Size(-1, -1),
+                  new cv.TermCriteria(cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 20, 0.05));
+                refined = [];
+                for (let k = 0; k < 4; k++) refined.push([sp.data32F[k * 2], sp.data32F[k * 2 + 1]]);
+              } catch (_) {
+              } finally {
+                if (sp) sp.delete();
+              }
             }
             bestById.set(hit.id, { area, corners: refined });
           }
@@ -1909,18 +1918,21 @@ function renderDetailsDrawer() {
 
 // --------- Frame-Analyse ---------
 function analyzeCurrentCanvas(highRes = false) {
-  if (!cvReady) return null;
-  const cw = canvas.width, ch = canvas.height;
+  if (!cvReady || video.readyState < 2) return null;
+  const cw = video.videoWidth, ch = video.videoHeight;
   if (!cw || !ch) return null;
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw; canvas.height = ch;
+  }
 
-  // Live-Vorschau: 640 px für 60 FPS; während 3s-Capture: 800 px (schärfer ohne Safari zu blockieren)
-  const maxW = highRes ? 800 : 640;
+  // Eco-Vorschau: 480 px (sehr wenig CPU/Akku); 3s-Capture: 960 px + Subpixel-Ecken (volle Präzision)
+  const maxW = highRes ? 960 : 480;
   const scale = Math.min(1, maxW / Math.max(cw, ch));
   const ww = Math.round(cw * scale), wh = Math.round(ch * scale);
   if (workCanvas.width !== ww || workCanvas.height !== wh) {
     workCanvas.width = ww; workCanvas.height = wh;
   }
-  workCtx.drawImage(canvas, 0, 0, ww, wh);
+  workCtx.drawImage(video, 0, 0, ww, wh);
 
   let src = null, gray = null, K = null, dist = null;
   try {
@@ -1928,7 +1940,7 @@ function analyzeCurrentCanvas(highRes = false) {
     gray = new cv.Mat();
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-    const detectedSmall = detectMarkersJS(gray);
+    const detectedSmall = detectMarkersJS(gray, highRes);
     const inv = 1.0 / scale;
     const rawCube = parseFloat(document.getElementById("cubeSize").value);
     const cubeSize = Number.isFinite(rawCube) && rawCube >= 10 ? rawCube : 48.0;
@@ -2204,27 +2216,62 @@ async function copyReport() {
   }
 }
 
-// --------- Haupt-Loop mit Capture-Zustandsmaschine ---------
+// --------- Haupt-Loop mit Capture-Zustandsmaschine (Eco-Vorschau / Full-Quality Capture) ---------
+let loopRafId = null;
+let loopTimerId = null;
+
+function cancelLoopTimers() {
+  if (loopRafId !== null) { cancelAnimationFrame(loopRafId); loopRafId = null; }
+  if (loopTimerId !== null) { clearTimeout(loopTimerId); loopTimerId = null; }
+}
+
+function scheduleNextLoop(delayMs = 0) {
+  cancelLoopTimers();
+  if (!streaming || capturePhase === "captured") return;
+  if (delayMs > 0) {
+    loopTimerId = setTimeout(() => {
+      loopTimerId = null;
+      loop(performance.now());
+    }, delayMs);
+  } else {
+    loopRafId = requestAnimationFrame(ts => {
+      loopRafId = null;
+      loop(ts);
+    });
+  }
+}
+
 function resetCaptureUI() {
   capturePhase = "idle";
   captureSamples = [];
   captureOverlay.classList.remove("visible");
   btnCapture.textContent = "⏺ Capture";
   btnCapture.classList.remove("recording", "active", "primary");
+  if (canvas.width && canvas.height) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 function loop(now) {
-  if (!streaming) return;
+  if (!streaming || capturePhase === "captured") return;
+
+  const uiPaused = capturePhase === "idle" && (
+    document.hidden ||
+    guideVisible ||
+    v3dOpen ||
+    settingsDrawer.classList.contains("open") ||
+    detailsDrawer.classList.contains("open")
+  );
 
   try {
-    if (capturePhase !== "captured" && video.readyState >= 2) {
+    if (!uiPaused && video.readyState >= 2) {
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       }
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const isRec = capturePhase === "recording";
-      const interval = 160;
+      // Vorschau: ~2,8 Hz (spart Akku & Hitze); 3s-Capture: ~9 Hz bei 960 px + Subpixel
+      const interval = isRec ? 110 : 350;
       let freshSnap = null;
       if (!lastDetectMs || now - lastDetectMs >= interval) {
         lastDetectMs = now;
@@ -2234,6 +2281,8 @@ function loop(now) {
             lastSnapshot = freshSnap;
           }
           updateHUD(freshSnap);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          drawOverlay(lastSnapshot);
         }
       }
 
@@ -2248,7 +2297,7 @@ function loop(now) {
           capturePhase = "recording";
           captureStartMs = now;
           captureSamples = [];
-          lastDetectMs = 0; // sofort ersten Sample nehmen
+          lastDetectMs = 0; // sofort ersten Full-Res Sample nehmen
         }
       } else if (capturePhase === "recording") {
         if (freshSnap && freshSnap.objects.length > 0) {
@@ -2256,7 +2305,7 @@ function loop(now) {
         }
         const elapsed = now - captureStartMs;
         const rem = Math.max(0, (CAPTURE_DURATION_MS - elapsed) / 1000);
-        capTitle.textContent = "Messe Durchschnitt…";
+        capTitle.textContent = "Messe Durchschnitt (HD)…";
         capSub.textContent = `Noch ${rem.toFixed(1)} s · ${captureSamples.length} Samples`;
         capBar.style.background = "var(--green)";
         capBar.style.width = `${clamp(elapsed / CAPTURE_DURATION_MS, 0, 1) * 100}%`;
@@ -2270,25 +2319,33 @@ function loop(now) {
             const avgSnap = aggregateCaptureSamples(captureSamples, captureSamples[captureSamples.length - 1]);
             lastSnapshot = avgSnap;
             capturePhase = "captured";
-            // Eingefrorenes Schlussbild sauber mit gemitteltem Overlay zeichnen
+            // Eingefrorenes Schlussbild einmalig mit gemitteltem Overlay zeichnen (danach 0 % CPU)
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             drawOverlay(avgSnap);
             updateHUD(avgSnap);
             btnCapture.textContent = "⏸ Fortsetzen";
             btnCapture.classList.remove("recording", "active");
             btnCapture.classList.add("primary");
-            showToast(`Fertig: Ø aus ${avgSnap.totalFrames} Samples`);
+            showToast(`Fertig: Ø aus ${avgSnap.totalFrames} HD-Samples`);
             return;
           }
         }
       }
-
-      drawOverlay(lastSnapshot);
     }
   } catch (e) {
     vMeta.textContent = `Loop-Fehler: ${typeof e === "number" ? "cv#" + e : (e?.message || e)}`;
   } finally {
-    if (streaming) requestAnimationFrame(loop);
+    if (streaming && capturePhase !== "captured") {
+      if (capturePhase === "countdown" || capturePhase === "recording") {
+        scheduleNextLoop(0);
+      } else if (uiPaused) {
+        scheduleNextLoop(450);
+      } else if (video.readyState < 2) {
+        scheduleNextLoop(120);
+      } else {
+        scheduleNextLoop(350);
+      }
+    }
   }
 }
 
@@ -2303,17 +2360,23 @@ async function startCamera() {
   if (streaming || !cvReady) return;
   try {
     streamRef = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+      },
       audio: false
     });
     video.srcObject = streamRef;
     await video.play();
     streaming = true;
+    lastDetectMs = 0;
     setGuideVisible(false);
     resetCaptureUI();
     btnCapture.disabled = false;
     updateStartButtonsUI();
-    requestAnimationFrame(loop);
+    scheduleNextLoop(0);
   } catch (err) {
     statusEl.textContent = "HTTPS nötig";
     statusEl.className = "badge warn";
@@ -2324,9 +2387,11 @@ async function startCamera() {
 function stopCamera() {
   if (!streaming) return;
   streaming = false;
+  cancelLoopTimers();
   resetCaptureUI();
   if (streamRef) streamRef.getTracks().forEach(t => t.stop());
   streamRef = null;
+  video.srcObject = null;
   btnCapture.disabled = true;
   statusEl.textContent = "Bereit";
   statusEl.className = "badge ok";
@@ -2349,10 +2414,12 @@ btnCapture.addEventListener("click", () => {
     btnCapture.classList.add("recording");
     statusEl.textContent = "Vorlauf 1s…";
     statusEl.className = "badge warn";
+    scheduleNextLoop(0);
   } else {
     // Abbruch während Countdown/Recording ODER "Weiter" nach Capture
     resetCaptureUI();
     lastDetectMs = 0;
+    scheduleNextLoop(0);
   }
 });
 
@@ -2394,6 +2461,9 @@ function setGuideVisible(show) {
   updateStartButtonsUI();
   if (show && !guideRaf) {
     guideRaf = requestAnimationFrame(renderGuideFrame);
+  } else if (!show && streaming && capturePhase === "idle") {
+    lastDetectMs = 0;
+    scheduleNextLoop(0);
   }
 }
 
@@ -3285,6 +3355,10 @@ function openView3D() {
 function closeView3D() {
   v3dOpen = false;
   view3dOverlay.classList.remove("open");
+  if (streaming && capturePhase === "idle") {
+    lastDetectMs = 0;
+    scheduleNextLoop(0);
+  }
 }
 
 btnView3D.addEventListener("click", openView3D);
