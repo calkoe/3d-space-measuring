@@ -2,6 +2,8 @@
 
 Ein kompaktes Open-Source-3D-Messwerkzeug aus **3D-gedruckten 2-Farb-Messwürfeln (`DICT_4X4_50`)** und einer mobilen **Browser-Web-App (`OpenCV.js` / WASM)**.
 
+**Live-App (HTTPS · Offline-PWA):** **https://calkoe.github.io/3d-space-measuring/**
+
 Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS Safari / Android Chrome) — ohne Backend, ohne Cloud und ohne App-Installation.
 
 ---
@@ -25,15 +27,13 @@ Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS S
 
 ## Schnellstart
 
-### Option A: GitHub Pages (empfohlen — automatisches HTTPS)
-1. Repository auf GitHub pushen.
-2. In den Repository-Einstellungen unter **Settings → Pages → Build and deployment → Source** auf **GitHub Actions** umstellen.
-3. Der Workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) prüft automatisch JavaScript-Syntax, Links und 3MF-Integrität und veröffentlicht die App unter:
+### Option A: Live über GitHub Pages (empfohlen — automatisches HTTPS & Offline-PWA)
+1. Direkt im Smartphone-Browser öffnen:
    ```text
-   https://<dein-benutzername>.github.io/<repo-name>/
+   https://calkoe.github.io/3d-space-measuring/
    ```
-4. URL direkt auf dem Smartphone öffnen (HTTPS ist für Kamerazugriff und Service Worker erforderlich).
-5. **Als Offline-App installieren (iOS Safari):** Auf das **Teilen-Symbol → „Zum Home-Bildschirm“** tippen. Sobald die App einmalig online geöffnet wurde, liegen Oberfläche und `OpenCV.js` lokal im Cache und funktionieren danach auch **komplett ohne Internetverbindung**.
+2. **Als Offline-App installieren (iOS Safari):** Auf das **Teilen-Symbol → „Zum Home-Bildschirm“** tippen. Sobald die App einmalig online geöffnet wurde, liegen Oberfläche und `OpenCV.js` lokal im Cache und funktionieren danach auch **komplett ohne Internetverbindung** (Updates werden beim nächsten Online-Start automatisch erkannt).
+3. *(Für eigene Forks)*: In den Repository-Einstellungen unter **Settings → Pages → Build and deployment → Source** auf **GitHub Actions** stellen — der Workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) validiert und deployt automatisch bei jedem Push auf `main`.
 
 ### Option B: Lokaler HTTPS-Server im WLAN (macOS / Linux)
 ```bash
