@@ -2640,43 +2640,18 @@ function buildScene3D(snap) {
 }
 
 function renderView3DCards(scene) {
-  const { snap, pairs, triangle } = scene;
+  const { snap, triangle } = scene;
   v3dBadge.textContent = `${snap.isCapture ? "Capture Ø" : "Live"} · ${snap.objects.length} Marker`;
-  const refObj = snap.objects[0];
-  let html = "";
   if (triangle) {
     const b90 = angleCheckBadge(triangle.best90.angleDeg);
-    html += `<div class="v3d-card" style="border-color:rgba(192,132,252,0.55);background:rgba(168,85,247,0.1);">
-      <strong>📐 3-Punkt-Bauwinkel (Mittelpunkte)</strong>
+    v3dCards.innerHTML = `<div class="v3d-card" style="border-color:rgba(192,132,252,0.55);background:rgba(168,85,247,0.12);padding:6px 10px;margin-bottom:6px;">
+      <strong>📐 3-Punkt-Bauwinkel</strong>
       <span class="${b90.cls}">${b90.text}</span><br>
-      ${triangle.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(1)}°</strong>`).join(" · ")}<br>
-      <span class="mono">Unabhängig von Würfeldrehung · Fläche ${triangle.areaCm2.toFixed(1)} cm²</span>
-    </div>`;
-  }
-  if (pairs.length > 0) {
-    for (const { rel: r } of pairs) {
-      const pa = planeAngleForRel(r, v3dRefPlane);
-      const badge = angleCheckBadge(pa.deg);
-      html += `<div class="v3d-card">
-        <strong>${r.aLabel} ↔ ${r.bLabel}</strong>
-        <span class="${badge.cls}">${badge.text}</span><br>
-        Abstand: <strong>${r.distMm.toFixed(1)} mm</strong> (${r.distCm.toFixed(2)} cm)${r.distStdMm !== null ? ` <span class="mono">±${r.distStdMm.toFixed(1)}</span>` : ""} ·
-        <span class="mono">Δ(${fmtSigned(r.deltaInA[0],1)}, ${fmtSigned(r.deltaInA[1],1)}, ${fmtSigned(r.deltaInA[2],1)}) mm</span><br>
-        <span class="mono">Winkel ${pa.tag}: <strong>${pa.deg.toFixed(1)}°</strong> · XY ${(r.normalAngleDeg??0).toFixed(1)}° · XZ ${(r.angleXZDeg??0).toFixed(1)}° · YZ ${(r.angleYZDeg??0).toFixed(1)}°</span>
-      </div>`;
-    }
-    html += `<div class="v3d-card" style="padding:6px 10px;">
-      <strong>📷 Kamera zu ${refObj.label}:</strong>
-      Azimut <strong>${fmtSigned(refObj.azim, 1)}°</strong> · Elevation <strong>${fmtSigned(refObj.elev, 1)}°</strong> · Abstand <strong>${refObj.distCm.toFixed(1)} cm</strong>
+      ${triangle.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(1)}°</strong>`).join(" · ")}
     </div>`;
   } else {
-    html = `<div class="v3d-card">
-      <strong style="color:${refObj.color};">${refObj.label}</strong> <span class="mono">(Einzel-Marker · Basis Z=0)</span><br>
-      📷 Kamera: <strong>Azimut ${fmtSigned(refObj.azim, 1)}°</strong> · <strong>Elevation ${fmtSigned(refObj.elev, 1)}°</strong> · Abstand <strong>${refObj.distCm.toFixed(1)} cm</strong><br>
-      <span class="mono">Kamera XYZ: (${refObj.camPosMm.map(v => v.toFixed(0)).join(", ")}) mm · 2–3 Marker für Wandwinkel-Check erfassen.</span>
-    </div>`;
+    v3dCards.innerHTML = "";
   }
-  v3dCards.innerHTML = html;
 }
 
 function renderView3D() {
