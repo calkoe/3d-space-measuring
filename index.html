@@ -691,8 +691,8 @@
   <div class="v3d-toolbar">
     <div class="v3d-bar-row">
       <span class="v3d-bar-lbl">Sicht</span>
-      <button class="v3d-pill active" data-preset="cam">📷</button>
-      <button class="v3d-pill" data-preset="iso">Iso</button>
+      <button class="v3d-pill active" data-preset="iso">Iso</button>
+      <button class="v3d-pill" data-preset="cam">📷</button>
       <button class="v3d-pill" data-preset="top">Top</button>
       <button class="v3d-pill" data-preset="front">Front</button>
       <button class="v3d-pill" data-preset="right">Seite</button>
@@ -2223,6 +2223,9 @@ function setGuideVisible(show) {
 
 btnGuide.addEventListener("click", () => setGuideVisible(!guideVisible));
 btnCloseGuide.addEventListener("click", () => setGuideVisible(false));
+guideOverlay.addEventListener("click", e => {
+  if (e.target === guideOverlay && streaming) setGuideVisible(false);
+});
 
 // Touch/Maus-Drehung der 3D-Schematik (natürliche Richtung: Wischen folgt dem Finger)
 guideCanvas.addEventListener("pointerdown", e => {
@@ -2544,10 +2547,17 @@ let v3dAz = 34;
 let v3dEl = 28;
 let v3dZoom = 1.0;
 let v3dShowDeltas = true;
-let v3dShowCam = false;
+let v3dShowCam = true;
+let v3dRefPlane = "xy"; // "xy" (+Z) | "xz" (-Y) | "yz" (+X)
 let v3dPointers = new Map();
 let v3dPinchStart = null;
 let v3dDragStart = null;
+
+function planeAngleForRel(r, plane) {
+  if (plane === "xz") return { deg: r.angleXZDeg ?? 0, tag: "XZ (-Y)" };
+  if (plane === "yz") return { deg: r.angleYZDeg ?? 0, tag: "YZ (+X)" };
+  return { deg: r.normalAngleDeg ?? 0, tag: "XY (+Z)" };
+}
 
 function angleCheckBadge(angleDeg) {
   const d90 = angleDeg - 90.0;
@@ -2758,11 +2768,25 @@ function renderView3D() {
   const drawList = [];
 
   for (const c of cubes) {
-    // Transluzente Auflagefläche (zeigt die Wand/Fläche, auf der der Würfel steht!)
-    const baseQuad = [
-      [-planeHalf, -planeHalf, 0], [planeHalf, -planeHalf, 0],
-      [planeHalf, planeHalf, 0], [-planeHalf, planeHalf, 0],
-    ].map(p => toWorld(c, p));
+    // Transluzente Bezugsebene je Würfel entsprechend gewählter Flächenwinkel-Ebene (XY / XZ / YZ)
+    let refQuadLocal;
+    if (v3dRefPlane === "xz") {
+      refQuadLocal = [
+        [-planeHalf, -h, h - planeHalf], [planeHalf, -h, h - planeHalf],
+        [planeHalf, -h, h + planeHalf], [-planeHalf, -h, h + planeHalf],
+      ];
+    } else if (v3dRefPlane === "yz") {
+      refQuadLocal = [
+        [h, -planeHalf, h - planeHalf], [h, planeHalf, h - planeHalf],
+        [h, planeHalf, h + planeHalf], [h, -planeHalf, h + planeHalf],
+      ];
+    } else {
+      refQuadLocal = [
+        [-planeHalf, -planeHalf, 0], [planeHalf, -planeHalf, 0],
+        [planeHalf, planeHalf, 0], [-planeHalf, planeHalf, 0],
+      ];
+    }
+    const baseQuad = refQuadLocal.map(p => toWorld(c, p));
     const bp2 = baseQuad.map(proj);
     if (bp2.every(Boolean)) {
       const avgZ = bp2.reduce((s, v) => s + v[2], 0) / 4;
@@ -3085,16 +3109,20 @@ function openView3D() {
     return;
   }
   v3dScene = buildScene3D(lastSnapshot);
-  // Startperspektive = echte aktuelle Kamerasicht auf Marker 1 (intuitiver Abgleich mit der Realität!)
-  const refObj = lastSnapshot.objects[0];
-  v3dAz = Number.isFinite(refObj.azim) ? refObj.azim : 34;
-  v3dEl = Number.isFinite(refObj.elev) ? clamp(refObj.elev, 5, 78) : 28;
+  // Standard-Ansicht: 3D-Iso (zeigt alle Würfel + Kamera-Frustum sauber aus 3/4-Perspektive)
+  v3dAz = 34;
+  v3dEl = 28;
   v3dZoom = 1.0;
   v3dOpen = true;
   view3dOverlay.classList.add("open");
-  document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b.dataset.preset === "cam"));
+  document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b.dataset.preset === "iso"));
+  document.querySelectorAll(".v3d-pill.plane").forEach(b => b.classList.toggle("active", b.dataset.plane === v3dRefPlane));
+  btn3dDeltas.classList.toggle("active", v3dShowDeltas);
+  btn3dCam.classList.toggle("active", v3dShowCam);
   renderView3DCards(v3dScene);
+  renderView3D();
   requestAnimationFrame(renderView3D);
+  setTimeout(() => { if (v3dOpen) renderView3D(); }, 80);
 }
 
 function closeView3D() {
