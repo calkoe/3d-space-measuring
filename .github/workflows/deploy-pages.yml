@@ -81,6 +81,25 @@ jobs:
               print(f"3MF {fn}: {len(mats)} materials, {len(items)} build item(s) - OK")
           PY
 
+      - name: Configure Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+
+      - name: Stage static site (_site)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p _site
+          cp index.html manifest.webmanifest sw.js _site/
+          sed -i "s/__BUILD_SHA__/${GITHUB_SHA:0:8}/g" _site/sw.js
+          cp -r icons models _site/
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site"
+
   deploy:
     name: Deploy to GitHub Pages
     needs: validate
@@ -90,25 +109,6 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Stage static site (_site)
-        run: |
-          mkdir -p _site
-          cp index.html manifest.webmanifest sw.js _site/
-          sed -i "s/__BUILD_SHA__/${GITHUB_SHA:0:8}/g" _site/sw.js
-          cp -r icons models _site/
-          touch _site/.nojekyll
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: "_site"
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
