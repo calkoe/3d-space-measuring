@@ -11,6 +11,7 @@ Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS S
 - **Kugelkoordinaten zur Kamera:** Echtzeit-Messung von **Azimut (Orbit um Z)**, **Elevation (Höhenwinkel)** und **Abstand** relativ zu jedem Messwürfel.
 - **Multi-Marker 3D-Vermessung (bis zu 3 Würfel gleichzeitig):** Berechnet zwischen allen sichtbaren Würfeln den **3D-Abstand (mm)**, den relativen **Versatz (`ΔX / ΔY / ΔZ`)**, den **Flächenwinkel (`+Z/+Z`)**, die **3D-Gesamtdrehung**, **Euler-Winkel (ZYX)** und die **Normalenvektoren**.
 - **Zeitgesteuertes 3s-Capture mit Ausreißer-Filterung:** 1 s Vorlauf (Hand beruhigen) → 3 s Aufzeichnung mit Multi-Flächen-Bevorzugung, MAD-Ausreißer-Filter, zirkulärem Mittelwert (`±σ`) und anschließendem Standbild.
+- **Interaktive 3D-Raumansicht (`🧊 3D`):** Zeigt nach dem Capture (oder live) alle 1–3 Messwürfel maßstabsgetreu mit ihren Auflageflächen im 3D-Raum (frei dreh- & zoombar, inkl. `Oben / Vorne / Rechts`-Ansichten), mit klar markierten 3D-Abständen, `ΔX/ΔY/ΔZ`-Projektion und automatischem **90°-Rechtwinkligkeits-Check** für Wände & Flächen.
 - **Direkter `.txt`-Export & Zwischenablage:** Strukturierter Messbericht für CAD-Workflows, Dokumentation oder Weiterverarbeitung.
 - **Frei skalierbare Würfelgröße:** Die 48-mm-Würfel lassen sich im Slicer beliebig gleichmäßig skalieren (z. B. 30 mm, 36 mm, 60 mm) — die neue Kantenlänge wird einfach in den Einstellungen (`⚙`) eingetragen (das Marker-Verhältnis von exakt `75 %` bleibt dabei erhalten).
 - **Interaktive 3D-Start-Schematik:** Animierter, frei drehbarer 3D-Würfel beim Start (jederzeit über `?` aufrufbar), der `+X / -Y / +Z`, Boden (`Z = 0`) und die **3 mm Orientierungsfase unten rechts** eindeutig zeigt.
@@ -124,6 +125,8 @@ Mit der **Bohrung nach unten (`Z = 0`)** und der **3 mm Fase unten rechts**:
 
 ---
 
-## Lizenz
+## Lizenz & Danksagung
 
 Veröffentlicht unter der [MIT-Lizenz](LICENSE).
+
+- Nutzt [OpenCV.js](https://docs.opencv.org/) (Apache-2.0-Lizenz) und das ArUco-Dictionary `DICT_4X4_50`.

@@ -159,7 +159,7 @@
     text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1px;
   }
 
-  /* BOTTOM ACTION BAR (4 klare Buttons) */
+  /* BOTTOM ACTION BAR (5 klare Buttons) */
   #bottomBar {
     position: fixed;
     bottom: max(8px, env(safe-area-inset-bottom));
@@ -168,18 +168,18 @@
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 7px 8px;
+    padding: 7px 7px;
     z-index: 20;
     display: grid;
-    grid-template-columns: 1.1fr 1.25fr 1fr 1fr;
-    gap: 7px;
+    grid-template-columns: 1.05fr 1.15fr 0.85fr 0.62fr 0.95fr;
+    gap: 5px;
   }
   button.act {
-    height: 44px; padding: 0 8px; border-radius: 11px;
+    height: 44px; padding: 0 5px; border-radius: 11px;
     border: 1px solid var(--border);
     background: rgba(255,255,255,0.09);
-    color: var(--text); font-size: 13px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center; gap: 5px;
+    color: var(--text); font-size: 12.5px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
     cursor: pointer; white-space: nowrap;
   }
   button.act:disabled { opacity: 0.38; cursor: default; }
@@ -187,6 +187,7 @@
   button.act.active { background: #16a34a; border-color: var(--green); }
   button.act.recording { background: #dc2626; border-color: #ef4444; }
   button.act.export { background: rgba(56,189,248,0.22); border-color: rgba(56,189,248,0.6); color: #e0f2fe; }
+  button.act.view3d { background: rgba(168,85,247,0.22); border-color: rgba(192,132,252,0.58); color: #f3e8ff; }
 
   /* SLIDE-UP DRAWERS */
   .drawer-backdrop {
@@ -320,10 +321,85 @@
   }
   .ax-tag { padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,0.06); }
 
+  /* FULLSCREEN 3D SCENE VIEWER */
+  #view3dOverlay {
+    position: fixed; inset: 0;
+    background: #070b14;
+    z-index: 45;
+    display: none;
+    flex-direction: column;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  #view3dOverlay.open { display: flex; }
+  .v3d-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 4px 12px 8px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  .v3d-head h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 7px; }
+  .v3d-toolbar {
+    display: flex; align-items: center; gap: 5px;
+    padding: 7px 12px;
+    overflow-x: auto; flex: none;
+  }
+  .v3d-pill {
+    flex: none; padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.07);
+    color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer;
+  }
+  .v3d-pill.active {
+    background: rgba(56,189,248,0.22); color: #e0f2fe; border-color: rgba(56,189,248,0.65);
+  }
+  .v3d-stage {
+    position: relative; flex: 1; min-height: 200px; overflow: hidden;
+  }
+  #view3dCanvas {
+    width: 100%; height: 100%; display: block; touch-action: none;
+    background: radial-gradient(circle at 50% 45%, #111c33 0%, #070b14 78%);
+  }
+  .v3d-hint {
+    position: absolute; left: 10px; bottom: 8px;
+    padding: 3px 8px; border-radius: 8px;
+    background: rgba(9,13,22,0.72); border: 1px solid rgba(255,255,255,0.1);
+    font-size: 10.5px; color: var(--muted); pointer-events: none;
+  }
+  .v3d-footer {
+    flex: none; max-height: 36dvh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--border);
+    background: rgba(15,23,42,0.95);
+    padding: 8px 12px 6px;
+  }
+  .v3d-card {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 11px; padding: 8px 10px; margin-bottom: 7px;
+    font-size: 12px; line-height: 1.45;
+  }
+  .v3d-badge-ok {
+    display: inline-block; padding: 1px 7px; border-radius: 999px;
+    background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid rgba(34,197,94,0.45);
+    font-size: 11px; font-weight: 700; margin-left: 4px;
+  }
+  .v3d-badge-warn {
+    display: inline-block; padding: 1px 7px; border-radius: 999px;
+    background: rgba(245,158,11,0.2); color: #fde68a; border: 1px solid rgba(245,158,11,0.45);
+    font-size: 11px; font-weight: 700; margin-left: 4px;
+  }
+  .v3d-actions { display: flex; gap: 7px; margin-top: 4px; }
+  .v3d-actions button {
+    flex: 1; height: 38px; border-radius: 10px;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.09);
+    color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .v3d-actions button.primary { background: rgba(56,189,248,0.22); border-color: rgba(56,189,248,0.6); color: #e0f2fe; }
+
   @media (orientation: landscape) and (max-height: 500px) {
     #hud { width: 320px; right: auto; }
     .val { font-size: 20px; }
-    #bottomBar { left: 10px; width: 360px; right: auto; }
+    #bottomBar { left: 10px; width: 390px; right: auto; }
     #widgets { bottom: max(8px, env(safe-area-inset-bottom)); }
     #guideOverlay { left: 340px; top: 8px; bottom: 8px; }
   }
@@ -420,7 +496,8 @@
 <div id="bottomBar">
   <button id="btnStart" class="act primary" disabled>▶ Kamera</button>
   <button id="btnCapture" class="act" disabled>⏺ Capture</button>
-  <button id="btnDetails" class="act">☰ Details</button>
+  <button id="btnView3D" class="act view3d" disabled>🧊 3D</button>
+  <button id="btnDetails" class="act" title="Details">☰</button>
   <button id="btnExport" class="act export" disabled>⬇ Export</button>
 </div>
 
@@ -494,8 +571,36 @@
     <div class="detail-card" style="color:var(--muted);">Noch kein Messwürfel erkannt.</div>
   </div>
   <div class="drawer-btns">
-    <button onclick="copyReport()">📋 Text kopieren</button>
-    <button class="primary" onclick="downloadReport()">⬇ Bericht (.txt) laden</button>
+    <button onclick="closeDrawers(); openView3D();">🧊 3D-View</button>
+    <button onclick="copyReport()">📋 Kopieren</button>
+    <button class="primary" onclick="downloadReport()">⬇ .txt</button>
+  </div>
+</div>
+
+<!-- FULLSCREEN 3D-RAUMANSICHT -->
+<div id="view3dOverlay">
+  <div class="v3d-head">
+    <h2>🧊 3D-Raumansicht <span id="v3dBadge" class="badge multi">Capture</span></h2>
+    <button id="btnClose3D" class="icon-btn" title="Schließen">✕</button>
+  </div>
+  <div class="v3d-toolbar">
+    <button class="v3d-pill active" data-preset="iso">3D Iso</button>
+    <button class="v3d-pill" data-preset="top">Oben (XY)</button>
+    <button class="v3d-pill" data-preset="front">Vorne (XZ)</button>
+    <button class="v3d-pill" data-preset="right">Rechts (YZ)</button>
+    <button id="btn3dDeltas" class="v3d-pill active">ΔX/Y/Z</button>
+    <button id="btn3dCam" class="v3d-pill">Kamera</button>
+  </div>
+  <div class="v3d-stage">
+    <canvas id="view3dCanvas"></canvas>
+    <div id="v3dHint" class="v3d-hint">Ziehen = Drehen · 2 Finger = Zoom</div>
+  </div>
+  <div class="v3d-footer">
+    <div id="v3dCards"></div>
+    <div class="v3d-actions">
+      <button onclick="copyReport()">📋 Text kopieren</button>
+      <button class="primary" onclick="downloadReport()">⬇ Bericht (.txt)</button>
+    </div>
   </div>
 </div>
 
@@ -607,6 +712,7 @@ const capBar = document.getElementById("capBar");
 
 const btnStart = document.getElementById("btnStart");
 const btnCapture = document.getElementById("btnCapture");
+const btnView3D = document.getElementById("btnView3D");
 const btnExport = document.getElementById("btnExport");
 const btnDetails = document.getElementById("btnDetails");
 const btnSettings = document.getElementById("btnSettings");
@@ -1094,6 +1200,7 @@ function computeRelations(objects) {
         bKey: B.key, bLabel: B.label, bCenterPx: B.centerPx,
         distMm, distCm: distMm / 10.0, distStdMm: null,
         deltaInA,
+        Rrel,
         dirAzimInA: dirSph.azim,
         dirElevInA: dirSph.elev,
         normalAngleDeg,
@@ -1224,9 +1331,14 @@ function aggregateCaptureSamples(samples, lastFrameSnap) {
     const bNorm = [bnx / bLen, bny / bLen, bnz / bLen];
     const bSph = sphericalFromNormal(bNorm[0], bNorm[1], bNorm[2]);
 
-    const lastRel = list[list.length - 1];
+    // Repräsentatives Rrel: Sample mit geringster Winkel-/Abstandsabweichung zum Mittelwert
+    let bestRel = list[list.length - 1], bestRelErr = Infinity;
+    for (const r of list) {
+      const err = Math.abs(r.normalAngleDeg - nAng) + Math.abs(r.distMm - dMm.mean) * 0.05;
+      if (err < bestRelErr) { bestRelErr = err; bestRel = r; }
+    }
     avgRelations.push({
-      ...lastRel,
+      ...bestRel,
       distMm: dMm.mean, distCm: dMm.mean / 10.0, distStdMm: dMm.std,
       deltaInA: [dx, dy, dz],
       dirAzimInA: dirAz, dirElevInA: dirEl,
@@ -1332,6 +1444,7 @@ function updateHUD(snap) {
   }
 
   btnExport.disabled = false;
+  btnView3D.disabled = false;
   const objs = snap.objects;
   if (!selectedObjKey || !objs.some(o => o.key === selectedObjKey)) {
     selectedObjKey = objs[0].key;
@@ -2085,6 +2198,523 @@ function renderGuideFrame(ts) {
 }
 
 setGuideVisible(true);
+
+// --------- Interaktive 3D-Raumansicht (Multi-Marker, Abstände & 90°-Check) ---------
+const view3dOverlay = document.getElementById("view3dOverlay");
+const view3dCanvas = document.getElementById("view3dCanvas");
+const v3dCtx = view3dCanvas.getContext("2d");
+const v3dBadge = document.getElementById("v3dBadge");
+const v3dCards = document.getElementById("v3dCards");
+const v3dHint = document.getElementById("v3dHint");
+const btnClose3D = document.getElementById("btnClose3D");
+const btn3dDeltas = document.getElementById("btn3dDeltas");
+const btn3dCam = document.getElementById("btn3dCam");
+
+let v3dOpen = false;
+let v3dScene = null;
+let v3dAz = 34;
+let v3dEl = 28;
+let v3dZoom = 1.0;
+let v3dShowDeltas = true;
+let v3dShowCam = false;
+let v3dPointers = new Map();
+let v3dPinchStart = null;
+let v3dDragStart = null;
+
+function angleCheckBadge(angleDeg) {
+  const d90 = angleDeg - 90.0;
+  if (Math.abs(d90) <= 1.5) {
+    return { cls: "v3d-badge-ok", short: "✓ ~90°", text: `✓ Rechtwinklig (Δ ${fmtSigned(d90, 1)}° zu 90°)` };
+  }
+  if (angleDeg <= 1.5) {
+    return { cls: "v3d-badge-ok", short: "✓ parallel", text: `✓ Parallel (${angleDeg.toFixed(1)}°)` };
+  }
+  if (angleDeg >= 178.5) {
+    return { cls: "v3d-badge-ok", short: "✓ 180°", text: `✓ Gegenüber (${angleDeg.toFixed(1)}°)` };
+  }
+  if (Math.abs(d90) <= 15.0) {
+    return { cls: "v3d-badge-warn", short: `Δ ${fmtSigned(d90, 1)}°`, text: `Abweichung zu 90°: ${fmtSigned(d90, 1)}°` };
+  }
+  return { cls: "v3d-badge-warn", short: `${angleDeg.toFixed(1)}°`, text: `Flächenwinkel ${angleDeg.toFixed(1)}°` };
+}
+
+function buildScene3D(snap) {
+  const cubeSize = snap.config?.cubeSize || 48.0;
+  const ref = snap.objects[0];
+  const relByPair = new Map();
+  for (const r of snap.relations) relByPair.set(r.pairKey, r);
+
+  const cubes = [];
+  for (let i = 0; i < snap.objects.length; i++) {
+    const o = snap.objects[i];
+    let pos = [0, 0, 0];
+    let R = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    if (i > 0) {
+      const rel = relByPair.get(`${ref.key}_${o.key}`);
+      if (rel && rel.deltaInA && rel.Rrel) {
+        pos = rel.deltaInA.slice();
+        R = rel.Rrel.slice();
+      } else {
+        const dt = [o.t[0] - ref.t[0], o.t[1] - ref.t[1], o.t[2] - ref.t[2]];
+        pos = matTmulVec(ref.R, dt);
+        R = matTmulMat(ref.R, o.R);
+      }
+    }
+    cubes.push({ obj: o, pos, R });
+  }
+
+  // Kamera im Referenz-Koordinatensystem von Marker A
+  const camPos = ref.camPosMm ? ref.camPosMm.slice() : [0, -300, 150];
+
+  // Bounding-Box aller Würfel berechnen (für Auto-Framing & Bodenraster)
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const half = cubeSize / 2;
+  const expand = p => {
+    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+    if (p[2] < minZ) minZ = p[2]; if (p[2] > maxZ) maxZ = p[2];
+  };
+  for (const c of cubes) {
+    for (const sx of [-half, half]) for (const sy of [-half, half]) for (const sz of [0, cubeSize]) {
+      const w = matMulVec(c.R, [sx, sy, sz]);
+      expand([c.pos[0] + w[0], c.pos[1] + w[1], c.pos[2] + w[2]]);
+    }
+  }
+  const center = [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+  const span = Math.max(cubeSize * 2.2, Math.hypot(maxX - minX, maxY - minY, maxZ - minZ));
+  const gridStep = span > 650 ? 100 : span > 280 ? 50 : span > 130 ? 25 : 20;
+
+  // Paar-Relationen mit direkten Welt-Endpunkten verknüpfen
+  const cubeByKey = new Map(cubes.map(c => [c.obj.key, c]));
+  const pairs = snap.relations.map(r => ({
+    rel: r,
+    a: cubeByKey.get(r.aKey),
+    b: cubeByKey.get(r.bKey),
+    badge: angleCheckBadge(r.normalAngleDeg),
+  })).filter(p => p.a && p.b);
+
+  return { snap, cubeSize, cubes, pairs, camPos, center, span, gridStep };
+}
+
+function renderView3DCards(scene) {
+  const { snap, pairs } = scene;
+  v3dBadge.textContent = `${snap.isCapture ? "Capture Ø" : "Live"} · ${snap.objects.length} Marker`;
+  let html = "";
+  if (pairs.length > 0) {
+    for (const { rel: r, badge } of pairs) {
+      html += `<div class="v3d-card">
+        <strong>${r.aLabel} ↔ ${r.bLabel}</strong>
+        <span class="${badge.cls}">${badge.text}</span><br>
+        Abstand: <strong>${r.distMm.toFixed(1)} mm</strong> (${r.distCm.toFixed(2)} cm)${r.distStdMm !== null ? ` <span class="mono">±${r.distStdMm.toFixed(1)}</span>` : ""} ·
+        <span class="mono">Δ(${fmtSigned(r.deltaInA[0],1)}, ${fmtSigned(r.deltaInA[1],1)}, ${fmtSigned(r.deltaInA[2],1)}) mm</span><br>
+        <span class="mono">Flächenwinkel: ${r.normalAngleDeg.toFixed(1)}° · 3D-Rot: ${r.totalRotDeg.toFixed(1)}° · Euler R/P/Y: ${fmtSigned(r.euler.rollX,1)}°/${fmtSigned(r.euler.pitchY,1)}°/${fmtSigned(r.euler.yawZ,1)}°</span>
+      </div>`;
+    }
+  } else {
+    const o = snap.objects[0];
+    html = `<div class="v3d-card">
+      <strong style="color:${o.color};">${o.label}</strong> <span class="mono">(Einzel-Marker · Basis Z=0)</span><br>
+      Blickwinkel: <strong>Azimut ${fmtSigned(o.azim, 1)}°</strong> · <strong>Elevation ${fmtSigned(o.elev, 1)}°</strong> · Abstand <strong>${o.distCm.toFixed(1)} cm</strong><br>
+      <span class="mono">Tipp: 2 oder 3 Messwürfel gleichzeitig erfassen, um Wandwinkel (90°-Check) & Abstände im 3D-Raum zu prüfen.</span>
+    </div>`;
+  }
+  v3dCards.innerHTML = html;
+}
+
+function renderView3D() {
+  if (!v3dOpen || !v3dScene) return;
+
+  const rect = view3dCanvas.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(200, Math.round(rect.width));
+  const H = Math.max(180, Math.round(rect.height));
+  if (view3dCanvas.width !== Math.round(W * dpr) || view3dCanvas.height !== Math.round(H * dpr)) {
+    view3dCanvas.width = Math.round(W * dpr);
+    view3dCanvas.height = Math.round(H * dpr);
+  }
+  v3dCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  v3dCtx.clearRect(0, 0, W, H);
+
+  const { cubeSize, cubes, pairs, camPos, center, span, gridStep } = v3dScene;
+  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster: ${gridStep} mm`;
+
+  // Orbit-Kamera um Szenen-Zentrum
+  const az = deg2rad(v3dAz), el = deg2rad(v3dEl);
+  const baseDist = span * 2.15;
+  const dist = clamp(baseDist / v3dZoom, cubeSize * 1.4, span * 10);
+  const eye = [
+    center[0] + dist * Math.cos(el) * Math.sin(az),
+    center[1] - dist * Math.cos(el) * Math.cos(az),
+    center[2] + dist * Math.sin(el),
+  ];
+
+  let fwd = [center[0] - eye[0], center[1] - eye[1], center[2] - eye[2]];
+  const fl = Math.hypot(fwd[0], fwd[1], fwd[2]) || 1;
+  fwd = [fwd[0] / fl, fwd[1] / fl, fwd[2] / fl];
+  let worldUp = Math.abs(fwd[2]) > 0.985 ? [0, 1, 0] : [0, 0, 1];
+  let right = [
+    fwd[1] * worldUp[2] - fwd[2] * worldUp[1],
+    fwd[2] * worldUp[0] - fwd[0] * worldUp[2],
+    fwd[0] * worldUp[1] - fwd[1] * worldUp[0],
+  ];
+  const rl = Math.hypot(right[0], right[1], right[2]) || 1;
+  right = [right[0] / rl, right[1] / rl, right[2] / rl];
+  const up = [
+    right[1] * fwd[2] - right[2] * fwd[1],
+    right[2] * fwd[0] - right[0] * fwd[2],
+    right[0] * fwd[1] - right[1] * fwd[0],
+  ];
+
+  const focal = Math.min(W, H) * 1.12;
+  const ox = W / 2, oy = H / 2;
+  function proj(p) {
+    const dx = p[0] - eye[0], dy = p[1] - eye[1], dz = p[2] - eye[2];
+    const x = dx * right[0] + dy * right[1] + dz * right[2];
+    const y = dx * up[0] + dy * up[1] + dz * up[2];
+    const z = dx * fwd[0] + dy * fwd[1] + dz * fwd[2];
+    if (z <= 1) return null;
+    const sc = focal / z;
+    return [ox + x * sc, oy - y * sc, z];
+  }
+
+  function toWorld(c, localPt) {
+    const w = matMulVec(c.R, localPt);
+    return [c.pos[0] + w[0], c.pos[1] + w[1], c.pos[2] + w[2]];
+  }
+
+  // 1. Referenz-Bodenraster (Z = 0 Ebene von Marker 1)
+  const gridHalf = Math.ceil((span * 0.95) / gridStep) * gridStep;
+  const gCx = Math.round(center[0] / gridStep) * gridStep;
+  const gCy = Math.round(center[1] / gridStep) * gridStep;
+  v3dCtx.save();
+  for (let gx = gCx - gridHalf; gx <= gCx + gridHalf; gx += gridStep) {
+    const a = proj([gx, gCy - gridHalf, 0]), b = proj([gx, gCy + gridHalf, 0]);
+    if (!a || !b) continue;
+    v3dCtx.strokeStyle = gx === 0 ? "rgba(34,197,94,0.38)" : "rgba(148,163,184,0.14)";
+    v3dCtx.lineWidth = gx === 0 ? 1.5 : 1;
+    v3dCtx.beginPath(); v3dCtx.moveTo(a[0], a[1]); v3dCtx.lineTo(b[0], b[1]); v3dCtx.stroke();
+  }
+  for (let gy = gCy - gridHalf; gy <= gCy + gridHalf; gy += gridStep) {
+    const a = proj([gCx - gridHalf, gy, 0]), b = proj([gCx + gridHalf, gy, 0]);
+    if (!a || !b) continue;
+    v3dCtx.strokeStyle = gy === 0 ? "rgba(239,68,68,0.38)" : "rgba(148,163,184,0.14)";
+    v3dCtx.lineWidth = gy === 0 ? 1.5 : 1;
+    v3dCtx.beginPath(); v3dCtx.moveTo(a[0], a[1]); v3dCtx.lineTo(b[0], b[1]); v3dCtx.stroke();
+  }
+  v3dCtx.restore();
+
+  // 2. Alle Flächen (Auflageflächen Z=0 + gefaste 3D-Würfelflächen) gemeinsam nach Tiefe sortieren
+  const h = cubeSize / 2;
+  const ch = cubeSize * 0.12;
+  const planeHalf = cubeSize * 0.95;
+  const drawList = [];
+
+  for (const c of cubes) {
+    // Transluzente Auflagefläche (zeigt die Wand/Fläche, auf der der Würfel steht!)
+    const baseQuad = [
+      [-planeHalf, -planeHalf, 0], [planeHalf, -planeHalf, 0],
+      [planeHalf, planeHalf, 0], [-planeHalf, planeHalf, 0],
+    ].map(p => toWorld(c, p));
+    const bp2 = baseQuad.map(proj);
+    if (bp2.every(Boolean)) {
+      const avgZ = bp2.reduce((s, v) => s + v[2], 0) / 4;
+      drawList.push({
+        type: "plane", avgZ: avgZ + 4, p2: bp2, color: c.obj.color,
+      });
+    }
+
+    const localFaces = [
+      { markerIdx: 0, n: [0, 0, 1],  u: [1, 0, 0],  v: [0, 1, 0], c3: [0, 0, cubeSize], pts: [[-h,-h,cubeSize],[h,-h,cubeSize],[h,h,cubeSize],[-h,h,cubeSize]], fill: "#f1f5f9" },
+      { markerIdx: 1, n: [0, -1, 0], u: [1, 0, 0],  v: [0, 0, 1], c3: [0, -h, h],       pts: [[-h,-h,0],[h-ch,-h,0],[h,-h,ch],[h,-h,cubeSize],[-h,-h,cubeSize]], fill: "#e2e8f0" },
+      { markerIdx: 2, n: [1, 0, 0],  u: [0, 1, 0],  v: [0, 0, 1], c3: [h, 0, h],        pts: [[h,-h,ch],[h,h,ch],[h,h,cubeSize],[h,-h,cubeSize]], fill: "#cbd5e1" },
+      { markerIdx: 3, n: [0, 1, 0],  u: [-1, 0, 0], v: [0, 0, 1], c3: [0, h, h],        pts: [[h-ch,h,0],[-h,h,0],[-h,h,cubeSize],[h,h,cubeSize],[h,h,ch]], fill: "#cbd5e1" },
+      { markerIdx: 4, n: [-1, 0, 0], u: [0, -1, 0], v: [0, 0, 1], c3: [-h, 0, h],       pts: [[-h,h,0],[-h,-h,0],[-h,-h,cubeSize],[-h,h,cubeSize]], fill: "#94a3b8" },
+      { markerIdx: -1, n: [0, 0, -1], pts: [[-h,h,0],[h-ch,h,0],[h-ch,-h,0],[-h,-h,0]], fill: "#64748b" },
+      { markerIdx: -1, isChamfer: true, n: [0.707, 0, -0.707], pts: [[h-ch,-h,0],[h-ch,h,0],[h,h,ch],[h,-h,ch]], fill: "#f59e0b" },
+    ];
+
+    for (const f of localFaces) {
+      const wPts = f.pts.map(p => toWorld(c, p));
+      const p2 = wPts.map(proj);
+      if (!p2.every(Boolean)) continue;
+      const wN = matMulVec(c.R, f.n);
+      const mid = [0, 0, 0];
+      for (const wp of wPts) { mid[0] += wp[0]; mid[1] += wp[1]; mid[2] += wp[2]; }
+      mid[0] /= wPts.length; mid[1] /= wPts.length; mid[2] /= wPts.length;
+      const toEye = [eye[0] - mid[0], eye[1] - mid[1], eye[2] - mid[2]];
+      if (wN[0] * toEye[0] + wN[1] * toEye[1] + wN[2] * toEye[2] <= 0 && !f.isChamfer) continue;
+      const avgZ = p2.reduce((s, v) => s + v[2], 0) / p2.length;
+      drawList.push({ type: "face", avgZ, p2, f, c });
+    }
+  }
+
+  drawList.sort((a, b) => b.avgZ - a.avgZ);
+
+  for (const item of drawList) {
+    if (item.type === "plane") {
+      v3dCtx.save();
+      v3dCtx.beginPath();
+      item.p2.forEach((pt, idx) => idx === 0 ? v3dCtx.moveTo(pt[0], pt[1]) : v3dCtx.lineTo(pt[0], pt[1]));
+      v3dCtx.closePath();
+      v3dCtx.globalAlpha = 0.16;
+      v3dCtx.fillStyle = item.color;
+      v3dCtx.fill();
+      v3dCtx.globalAlpha = 0.72;
+      v3dCtx.strokeStyle = item.color;
+      v3dCtx.lineWidth = 1.6;
+      v3dCtx.stroke();
+      v3dCtx.restore();
+    } else {
+      const { f, p2, c } = item;
+      v3dCtx.beginPath();
+      p2.forEach((pt, idx) => idx === 0 ? v3dCtx.moveTo(pt[0], pt[1]) : v3dCtx.lineTo(pt[0], pt[1]));
+      v3dCtx.closePath();
+      v3dCtx.fillStyle = f.fill;
+      v3dCtx.fill();
+      v3dCtx.strokeStyle = f.isChamfer ? "#fef08a" : "#1e293b";
+      v3dCtx.lineWidth = f.isChamfer ? 1.8 : 1.1;
+      v3dCtx.stroke();
+
+      if (f.markerIdx >= 0) {
+        const mask = DICT_4X4_15[c.obj.idOffset + f.markerIdx];
+        const ms = cubeSize * MARKER_RATIO * 0.5;
+        const cell = (ms * 2) / 6;
+        v3dCtx.fillStyle = "#0f172a";
+        for (let r = 0; r < 6; r++) {
+          for (let col = 0; col < 6; col++) {
+            const isBorder = r === 0 || r === 5 || col === 0 || col === 5;
+            const isBit = !isBorder && (((mask >> (15 - ((r - 1) * 4 + (col - 1)))) & 1) === 1);
+            if (!isBorder && !isBit) continue;
+            const u0 = -ms + col * cell, u1 = u0 + cell;
+            const v1 = ms - r * cell, v0 = v1 - cell;
+            const quad = [[u0, v1], [u1, v1], [u1, v0], [u0, v0]].map(([uu, vv]) => proj(toWorld(c, [
+              f.c3[0] + f.u[0] * uu + f.v[0] * vv,
+              f.c3[1] + f.u[1] * uu + f.v[1] * vv,
+              f.c3[2] + f.u[2] * uu + f.v[2] * vv,
+            ])));
+            if (!quad.every(Boolean)) continue;
+            v3dCtx.beginPath();
+            quad.forEach((pt, idx) => idx === 0 ? v3dCtx.moveTo(pt[0], pt[1]) : v3dCtx.lineTo(pt[0], pt[1]));
+            v3dCtx.closePath();
+            v3dCtx.fill();
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Lokale Achsen (+X Rot, +Y Grün, verlängerte +Z-Flächennormale Blau) & Marker-Labels
+  function drawSeg(pA, pB, color, width = 2, dash = null) {
+    const a = proj(pA), b = proj(pB);
+    if (!a || !b) return null;
+    v3dCtx.save();
+    v3dCtx.strokeStyle = color;
+    v3dCtx.lineWidth = width;
+    if (dash) v3dCtx.setLineDash(dash);
+    v3dCtx.beginPath(); v3dCtx.moveTo(a[0], a[1]); v3dCtx.lineTo(b[0], b[1]); v3dCtx.stroke();
+    v3dCtx.restore();
+    return [a, b];
+  }
+
+  function drawArrow(pA, pB, color, label) {
+    const seg = drawSeg(pA, pB, color, 2.3);
+    if (!seg) return;
+    const [a, b] = seg;
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    v3dCtx.save();
+    v3dCtx.fillStyle = color;
+    v3dCtx.beginPath();
+    v3dCtx.moveTo(b[0], b[1]);
+    v3dCtx.lineTo(b[0] - 8 * Math.cos(ang - 0.42), b[1] - 8 * Math.sin(ang - 0.42));
+    v3dCtx.lineTo(b[0] - 8 * Math.cos(ang + 0.42), b[1] - 8 * Math.sin(ang + 0.42));
+    v3dCtx.closePath();
+    v3dCtx.fill();
+    if (label) {
+      v3dCtx.font = "700 11px -apple-system, system-ui, sans-serif";
+      v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
+      v3dCtx.fillText(label, b[0] + Math.cos(ang) * 11, b[1] + Math.sin(ang) * 11);
+    }
+    v3dCtx.restore();
+  }
+
+  const axLen = cubeSize * 0.95;
+  const normLen = cubeSize * 1.55;
+  for (const c of cubes) {
+    drawArrow(toWorld(c, [h, 0, 0]), toWorld(c, [h + axLen * 0.7, 0, 0]), "#ef4444", "+X");
+    drawArrow(toWorld(c, [0, -h, 0]), toWorld(c, [0, -h - axLen * 0.7, 0]), "#22c55e", "-Y");
+    drawArrow(toWorld(c, [0, 0, cubeSize]), toWorld(c, [0, 0, cubeSize + normLen * 0.55]), "#60a5fa", "+Z");
+
+    const topPt = proj(toWorld(c, [0, 0, cubeSize + normLen * 0.55 + 12]));
+    if (topPt) {
+      const txt = c.obj.label;
+      v3dCtx.save();
+      v3dCtx.font = "700 11.5px -apple-system, system-ui, sans-serif";
+      const tw = v3dCtx.measureText(txt).width + 12;
+      v3dCtx.fillStyle = "rgba(9,13,22,0.88)";
+      v3dCtx.strokeStyle = c.obj.color;
+      v3dCtx.lineWidth = 1.5;
+      v3dCtx.fillRect(topPt[0] - tw / 2, topPt[1] - 10, tw, 20);
+      v3dCtx.strokeRect(topPt[0] - tw / 2, topPt[1] - 10, tw, 20);
+      v3dCtx.fillStyle = c.obj.color;
+      v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
+      v3dCtx.fillText(txt, topPt[0], topPt[1]);
+      v3dCtx.restore();
+    }
+  }
+
+  // 4. Paarweise Abstände, ΔX/ΔY/ΔZ-Projektion & 90°-Winkel-Pillen
+  for (const { rel: r, a, b, badge } of pairs) {
+    if (v3dShowDeltas) {
+      const p0 = a.pos;
+      const pX = [b.pos[0], a.pos[1], a.pos[2]];
+      const pXY = [b.pos[0], b.pos[1], a.pos[2]];
+      const pXYZ = b.pos;
+      drawSeg(p0, pX, "rgba(239,68,68,0.65)", 1.5, [4, 4]);
+      drawSeg(pX, pXY, "rgba(34,197,94,0.65)", 1.5, [4, 4]);
+      drawSeg(pXY, pXYZ, "rgba(96,165,250,0.65)", 1.5, [4, 4]);
+    }
+
+    const line = drawSeg(a.pos, b.pos, "#38bdf8", 2.4, [7, 5]);
+    if (line) {
+      for (const pt of line) {
+        v3dCtx.fillStyle = "#38bdf8";
+        v3dCtx.beginPath(); v3dCtx.arc(pt[0], pt[1], 4, 0, Math.PI * 2); v3dCtx.fill();
+      }
+      const mid3 = [(a.pos[0] + b.pos[0]) / 2, (a.pos[1] + b.pos[1]) / 2, (a.pos[2] + b.pos[2]) / 2];
+      const mp = proj(mid3);
+      if (mp) {
+        const isGood = badge.cls === "v3d-badge-ok";
+        const label = `${r.distMm.toFixed(1)} mm · ∠ ${r.normalAngleDeg.toFixed(1)}° (${badge.short})`;
+        v3dCtx.save();
+        v3dCtx.font = "700 11.5px -apple-system, system-ui, sans-serif";
+        const tw = v3dCtx.measureText(label).width + 16;
+        v3dCtx.fillStyle = "rgba(15,23,42,0.94)";
+        v3dCtx.strokeStyle = isGood ? "#22c55e" : "#f59e0b";
+        v3dCtx.lineWidth = 1.6;
+        if (typeof v3dCtx.roundRect === "function") {
+          v3dCtx.beginPath();
+          v3dCtx.roundRect(mp[0] - tw / 2, mp[1] - 12, tw, 24, 8);
+          v3dCtx.fill(); v3dCtx.stroke();
+        } else {
+          v3dCtx.fillRect(mp[0] - tw / 2, mp[1] - 12, tw, 24);
+          v3dCtx.strokeRect(mp[0] - tw / 2, mp[1] - 12, tw, 24);
+        }
+        v3dCtx.fillStyle = isGood ? "#bbf7d0" : "#fde68a";
+        v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
+        v3dCtx.fillText(label, mp[0], mp[1]);
+        v3dCtx.restore();
+      }
+    }
+  }
+
+  // 5. Optionale Kamera-Position & Blickstrahl
+  if (v3dShowCam) {
+    const targetPt = [0, 0, h];
+    drawSeg(camPos, targetPt, "rgba(248,250,252,0.45)", 1.5, [4, 4]);
+    const cp = proj(camPos);
+    if (cp) {
+      v3dCtx.save();
+      v3dCtx.fillStyle = "#f8fafc";
+      v3dCtx.strokeStyle = "#38bdf8";
+      v3dCtx.lineWidth = 2;
+      v3dCtx.beginPath(); v3dCtx.arc(cp[0], cp[1], 6, 0, Math.PI * 2); v3dCtx.fill(); v3dCtx.stroke();
+      v3dCtx.font = "700 11px -apple-system, system-ui, sans-serif";
+      v3dCtx.fillStyle = "#e0f2fe";
+      v3dCtx.textAlign = "center";
+      v3dCtx.fillText(`📷 Kamera (${(v3dScene.snap.objects[0].distCm).toFixed(0)} cm)`, cp[0], cp[1] - 13);
+      v3dCtx.restore();
+    }
+  }
+}
+
+function openView3D() {
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    showToast("Erst Marker erfassen!");
+    return;
+  }
+  v3dScene = buildScene3D(lastSnapshot);
+  v3dAz = 34; v3dEl = 28; v3dZoom = 1.0;
+  v3dOpen = true;
+  view3dOverlay.classList.add("open");
+  document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b.dataset.preset === "iso"));
+  renderView3DCards(v3dScene);
+  requestAnimationFrame(renderView3D);
+}
+
+function closeView3D() {
+  v3dOpen = false;
+  view3dOverlay.classList.remove("open");
+}
+
+btnView3D.addEventListener("click", openView3D);
+btnClose3D.addEventListener("click", closeView3D);
+window.addEventListener("resize", () => { if (v3dOpen) renderView3D(); });
+
+document.querySelectorAll(".v3d-pill[data-preset]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.preset;
+    if (p === "iso")   { v3dAz = 34; v3dEl = 28; v3dZoom = 1.0; }
+    if (p === "top")   { v3dAz = 0;  v3dEl = 88; v3dZoom = 1.05; }
+    if (p === "front") { v3dAz = 0;  v3dEl = 4;  v3dZoom = 1.05; }
+    if (p === "right") { v3dAz = 90; v3dEl = 4;  v3dZoom = 1.05; }
+    document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b === btn));
+    renderView3D();
+  });
+});
+
+btn3dDeltas.addEventListener("click", () => {
+  v3dShowDeltas = !v3dShowDeltas;
+  btn3dDeltas.classList.toggle("active", v3dShowDeltas);
+  renderView3D();
+});
+btn3dCam.addEventListener("click", () => {
+  v3dShowCam = !v3dShowCam;
+  btn3dCam.classList.toggle("active", v3dShowCam);
+  renderView3D();
+});
+
+// Touch-Orbit (1 Finger) & Pinch-Zoom (2 Finger) + Mausrad
+view3dCanvas.addEventListener("pointerdown", e => {
+  view3dCanvas.setPointerCapture(e.pointerId);
+  v3dPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (v3dPointers.size === 1) {
+    v3dDragStart = { x: e.clientX, y: e.clientY, az: v3dAz, el: v3dEl };
+    v3dPinchStart = null;
+  } else if (v3dPointers.size === 2) {
+    const pts = Array.from(v3dPointers.values());
+    v3dPinchStart = { dist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y), zoom: v3dZoom };
+    v3dDragStart = null;
+  }
+});
+view3dCanvas.addEventListener("pointermove", e => {
+  if (!v3dPointers.has(e.pointerId)) return;
+  v3dPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (v3dPointers.size === 2 && v3dPinchStart) {
+    const pts = Array.from(v3dPointers.values());
+    const d = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    if (v3dPinchStart.dist > 10) {
+      v3dZoom = clamp(v3dPinchStart.zoom * (d / v3dPinchStart.dist), 0.35, 3.8);
+      renderView3D();
+    }
+  } else if (v3dPointers.size === 1 && v3dDragStart) {
+    v3dAz = v3dDragStart.az + (e.clientX - v3dDragStart.x) * 0.55;
+    v3dEl = clamp(v3dDragStart.el + (e.clientY - v3dDragStart.y) * 0.45, -80, 88);
+    document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.remove("active"));
+    renderView3D();
+  }
+});
+const endV3dPtr = e => {
+  v3dPointers.delete(e.pointerId);
+  if (v3dPointers.size < 2) v3dPinchStart = null;
+  if (v3dPointers.size === 0) v3dDragStart = null;
+};
+view3dCanvas.addEventListener("pointerup", endV3dPtr);
+view3dCanvas.addEventListener("pointercancel", endV3dPtr);
+view3dCanvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  v3dZoom = clamp(v3dZoom * (e.deltaY > 0 ? 0.9 : 1.11), 0.35, 3.8);
+  renderView3D();
+}, { passive: false });
 
 window.Module = {
   onRuntimeInitialized() {
