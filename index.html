@@ -26,7 +26,7 @@
     --red: #ef4444;
     --blue: #2563eb;
   }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
     background: var(--bg); color: var(--text);
@@ -34,7 +34,9 @@
     overflow: hidden;
     overscroll-behavior: none;
     position: fixed; inset: 0;
+    -webkit-user-select: none; user-select: none;
   }
+  input, .detail-card, .mono { -webkit-user-select: text; user-select: text; }
 
   #stage {
     position: fixed; inset: 0;
@@ -215,15 +217,17 @@
   }
   .start-cta:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
   #startCenterWrap {
-    position: absolute; left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: auto; z-index: 19;
-    display: none;
+    position: fixed; inset: 0;
+    height: var(--app-h, 100dvh);
+    background: rgba(3, 6, 14, 0.68);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center;
+    pointer-events: auto; z-index: 28;
   }
-  #startCenterWrap.visible { display: block; }
+  #startCenterWrap.visible { display: flex; }
   #startCenterWrap .start-cta {
-    width: auto; min-width: 210px; height: 54px; margin-top: 0;
-    padding: 0 24px; border-radius: 16px; font-size: 16px;
+    width: auto; min-width: 220px; height: 56px; margin-top: 0;
+    padding: 0 26px; border-radius: 16px; font-size: 16px;
   }
   button.act {
     min-width: 0;
@@ -311,12 +315,19 @@
   }
   #toast.show { opacity: 1; }
 
-  /* START-SCHEMATIK OVERLAY (exakt im #midArea eingepasst) */
+  /* START-SCHEMATIK OVERLAY (Vollbild-Backdrop dunkelt Hintergrund klar ab) */
   #guideOverlay {
-    position: relative;
-    width: 100%;
-    max-height: 100%;
-    z-index: 18;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--app-h, 100dvh);
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 14px)
+      calc(env(safe-area-inset-right, 0px) + 12px)
+      calc(env(safe-area-inset-bottom, 0px) + 14px)
+      calc(env(safe-area-inset-left, 0px) + 12px);
+    background: rgba(3, 6, 14, 0.78);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    z-index: 32;
     display: flex; align-items: center; justify-content: center;
     pointer-events: auto;
     transition: opacity 0.2s ease;
@@ -327,12 +338,11 @@
     max-height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: rgba(15, 23, 42, 0.92);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(255,255,255,0.16);
-    border-radius: 18px;
-    padding: 10px 12px 11px;
-    box-shadow: 0 18px 44px rgba(0,0,0,0.5);
+    background: rgba(15, 23, 42, 0.97);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 12px 13px 13px;
+    box-shadow: 0 22px 54px rgba(0,0,0,0.72);
   }
   .guide-head {
     display: flex; align-items: center; justify-content: space-between;
@@ -396,18 +406,30 @@
   }
   .v3d-head h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 7px; }
   .v3d-toolbar {
-    display: flex; align-items: center; gap: 5px;
-    padding: 7px 12px;
-    overflow-x: auto; flex: none;
+    display: flex; flex-direction: column; gap: 5px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex: none;
   }
+  .v3d-bar-row {
+    display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
+  }
+  .v3d-bar-lbl {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); margin-right: 2px; flex: none;
+  }
+  .v3d-sep { width: 1px; height: 16px; background: rgba(255,255,255,0.14); margin: 0 2px; flex: none; }
   .v3d-pill {
-    flex: none; padding: 5px 10px; border-radius: 999px;
+    flex: none; padding: 4px 8px; border-radius: 999px;
     border: 1px solid var(--border);
     background: rgba(255,255,255,0.07);
-    color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer;
+    color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer;
   }
   .v3d-pill.active {
     background: rgba(56,189,248,0.22); color: #e0f2fe; border-color: rgba(56,189,248,0.65);
+  }
+  .v3d-pill.plane.active {
+    background: rgba(245,158,11,0.24); color: #fde68a; border-color: rgba(245,158,11,0.7);
   }
   .v3d-stage {
     position: relative; flex: 1; min-height: 200px; overflow: hidden;
@@ -510,46 +532,8 @@
     <div id="relBanner" title="Tippen für alle Details"></div>
   </div>
 
-  <!-- FLEXIBLE MITTE (Start-Schematik & Corner-Widgets) -->
+  <!-- FLEXIBLE MITTE (Corner-Widgets) -->
   <div id="midArea">
-    <!-- START-SCHEMATIK (ANIMIERTER 3D-WÜRFEL) -->
-    <div id="guideOverlay">
-      <div class="guide-card">
-        <div class="guide-head">
-          <h3>Würfel-Ausrichtung <span class="guide-pill">Z-up · CAD-Standard</span></h3>
-          <button id="btnCloseGuide" class="icon-btn" title="Ausblenden">✕</button>
-        </div>
-        <canvas id="guideCanvas" width="460" height="270"></canvas>
-        <div class="guide-legend">
-          <div class="guide-row" style="border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.09);">
-            <span class="gdot" style="background:#f59e0b;"></span>
-            <div><strong style="color:#fcd34d;">3 mm Fase → Unten Rechts (+X)</strong><br>Boden mit Bohrung (<span class="mono">Z = 0</span>) liegt auf der Messfläche.</div>
-          </div>
-          <div class="guide-row">
-            <span class="gdot" style="background:#38bdf8;"></span>
-            <div>
-              <strong>Koordinatensystem (Rechtssystem):</strong>
-              <div class="guide-axes">
-                <span class="ax-tag" style="color:#fca5a5;">+X Rechts (Fase, +90°)</span>
-                <span class="ax-tag" style="color:#86efac;">-Y Vorne (0°)</span>
-                <span class="ax-tag" style="color:#93c5fd;">+Z Oben (+90° Elev.)</span>
-              </div>
-            </div>
-          </div>
-          <div class="guide-row">
-            <span class="gdot" style="background:#22c55e;"></span>
-            <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen.</div>
-          </div>
-        </div>
-        <button id="btnStartGuide" class="start-cta" disabled>⏳ Lade OpenCV…</button>
-      </div>
-    </div>
-
-    <!-- ZENTRALER START-BUTTON (falls Schematik ausgeblendet & Kamera aus) -->
-    <div id="startCenterWrap">
-      <button id="btnStartCenter" class="start-cta" disabled>⏳ Lade OpenCV…</button>
-    </div>
-
     <!-- CORNER WIDGETS -->
     <div id="widgets">
       <div class="widget-box">
@@ -569,6 +553,44 @@
     <button id="btnView3D" class="act view3d" disabled>🧊 3D</button>
     <button id="btnDetails" class="act export">☰ Details</button>
   </div>
+</div>
+
+<!-- START-SCHEMATIK MODAL (dunkelt gesamten Hintergrund ab) -->
+<div id="guideOverlay">
+  <div class="guide-card">
+    <div class="guide-head">
+      <h3>Würfel-Ausrichtung <span class="guide-pill">Z-up · CAD-Standard</span></h3>
+      <button id="btnCloseGuide" class="icon-btn" title="Ausblenden">✕</button>
+    </div>
+    <canvas id="guideCanvas" width="460" height="270"></canvas>
+    <div class="guide-legend">
+      <div class="guide-row" style="border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.09);">
+        <span class="gdot" style="background:#f59e0b;"></span>
+        <div><strong style="color:#fcd34d;">3 mm Fase → Unten Rechts (+X)</strong><br>Boden mit Bohrung (<span class="mono">Z = 0</span>) liegt auf der Messfläche.</div>
+      </div>
+      <div class="guide-row">
+        <span class="gdot" style="background:#38bdf8;"></span>
+        <div>
+          <strong>Koordinatensystem (Rechtssystem):</strong>
+          <div class="guide-axes">
+            <span class="ax-tag" style="color:#fca5a5;">+X Rechts (Fase, +90°)</span>
+            <span class="ax-tag" style="color:#86efac;">-Y Vorne (0°)</span>
+            <span class="ax-tag" style="color:#93c5fd;">+Z Oben (+90° Elev.)</span>
+          </div>
+        </div>
+      </div>
+      <div class="guide-row">
+        <span class="gdot" style="background:#22c55e;"></span>
+        <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen.</div>
+      </div>
+    </div>
+    <button id="btnStartGuide" class="start-cta" disabled>⏳ Lade OpenCV…</button>
+  </div>
+</div>
+
+<!-- ZENTRALER START-BUTTON (falls Schematik ausgeblendet & Kamera aus) -->
+<div id="startCenterWrap">
+  <button id="btnStartCenter" class="start-cta" disabled>⏳ Lade OpenCV…</button>
 </div>
 
 <!-- CAPTURE OVERLAY -->
@@ -653,8 +675,9 @@
     <div class="detail-card" style="color:var(--muted);">Noch kein Messwürfel erkannt.</div>
   </div>
   <div class="drawer-btns">
-    <button onclick="closeDrawers(); openView3D();">🧊 3D-View</button>
+    <button onclick="closeDrawers(); openView3D();">🧊 3D</button>
     <button onclick="copyReport()">📋 Kopieren</button>
+    <button onclick="downloadYamlReport()">⬇ .yaml</button>
     <button class="primary" onclick="downloadReport()">⬇ .txt</button>
   </div>
 </div>
@@ -666,13 +689,23 @@
     <button id="btnClose3D" class="icon-btn" title="Schließen">✕</button>
   </div>
   <div class="v3d-toolbar">
-    <button class="v3d-pill active" data-preset="cam">📷 Sicht</button>
-    <button class="v3d-pill" data-preset="iso">3D Iso</button>
-    <button class="v3d-pill" data-preset="top">Oben (XY)</button>
-    <button class="v3d-pill" data-preset="front">Vorne (XZ)</button>
-    <button class="v3d-pill" data-preset="right">Rechts (YZ)</button>
-    <button id="btn3dDeltas" class="v3d-pill active">ΔX/Y/Z</button>
-    <button id="btn3dCam" class="v3d-pill">Kamera</button>
+    <div class="v3d-bar-row">
+      <span class="v3d-bar-lbl">Sicht</span>
+      <button class="v3d-pill active" data-preset="cam">📷</button>
+      <button class="v3d-pill" data-preset="iso">Iso</button>
+      <button class="v3d-pill" data-preset="top">Top</button>
+      <button class="v3d-pill" data-preset="front">Front</button>
+      <button class="v3d-pill" data-preset="right">Seite</button>
+      <span class="v3d-sep"></span>
+      <button id="btn3dDeltas" class="v3d-pill active">Δ</button>
+      <button id="btn3dCam" class="v3d-pill active">Kam</button>
+    </div>
+    <div class="v3d-bar-row">
+      <span class="v3d-bar-lbl">Flächenwinkel</span>
+      <button class="v3d-pill plane active" data-plane="xy">XY (+Z)</button>
+      <button class="v3d-pill plane" data-plane="xz">XZ (-Y)</button>
+      <button class="v3d-pill plane" data-plane="yz">YZ (+X)</button>
+    </div>
   </div>
   <div class="v3d-stage">
     <canvas id="view3dCanvas"></canvas>
@@ -681,8 +714,9 @@
   <div class="v3d-footer">
     <div id="v3dCards"></div>
     <div class="v3d-actions">
-      <button onclick="copyReport()">📋 Text kopieren</button>
-      <button class="primary" onclick="downloadReport()">⬇ Bericht (.txt)</button>
+      <button onclick="copyReport()">📋 Kopieren</button>
+      <button onclick="downloadYamlReport()">⬇ .yaml</button>
+      <button class="primary" onclick="downloadReport()">⬇ .txt</button>
     </div>
   </div>
 </div>
@@ -1279,7 +1313,9 @@ function computeRelations(objects, cubeSize = 48.0) {
       const Rrel = matTmulMat(A.R, B.R);
       const bNormalInA = [Rrel[2], Rrel[5], Rrel[8]];
       const bNormSph = sphericalFromNormal(bNormalInA[0], bNormalInA[1], bNormalInA[2]);
-      const normalAngleDeg = rad2deg(Math.acos(clamp(Rrel[8], -1, 1)));
+      const normalAngleDeg = rad2deg(Math.acos(clamp(Rrel[8], -1, 1))); // XY-Flächen (+Z / +Z)
+      const angleXZDeg = rad2deg(Math.acos(clamp(Rrel[4], -1, 1)));     // XZ-Flächen (-Y / -Y)
+      const angleYZDeg = rad2deg(Math.acos(clamp(Rrel[0], -1, 1)));     // YZ-Flächen (+X / +X)
       const totalRotDeg = rad2deg(Math.acos(clamp((Rrel[0] + Rrel[4] + Rrel[8] - 1) / 2, -1, 1)));
       const euler = eulerZYXFromR(Rrel);
 
@@ -1293,6 +1329,8 @@ function computeRelations(objects, cubeSize = 48.0) {
         dirAzimInA: dirSph.azim,
         dirElevInA: dirSph.elev,
         normalAngleDeg,
+        angleXZDeg,
+        angleYZDeg,
         totalRotDeg,
         euler,
         bNormalInA,
@@ -1302,6 +1340,60 @@ function computeRelations(objects, cubeSize = 48.0) {
     }
   }
   return rels;
+}
+
+// --------- 3-Punkt-Dreieck / Bauwinkel (rein aus den 3 Würfelmittelpunkten, unabhängig von Würfeldrehung!) ---------
+function computeTriangleFromSnapshot(s) {
+  if (!s || !s.objects || s.objects.length < 3) return null;
+  const h = (s.config?.cubeSize || 48.0) / 2.0;
+  const [A, B, C] = s.objects;
+  const relByPair = new Map((s.relations || []).map(r => [r.pairKey, r]));
+
+  const centerInA = obj => {
+    if (obj.key === A.key) return [0, 0, h];
+    const rel = relByPair.get(`${A.key}_${obj.key}`);
+    if (rel && rel.deltaInA) return [rel.deltaInA[0], rel.deltaInA[1], h + rel.deltaInA[2]];
+    const cA = [A.t[0] + A.R[2] * h, A.t[1] + A.R[5] * h, A.t[2] + A.R[8] * h];
+    const cO = [obj.t[0] + obj.R[2] * h, obj.t[1] + obj.R[5] * h, obj.t[2] + obj.R[8] * h];
+    const d = matTmulVec(A.R, [cO[0] - cA[0], cO[1] - cA[1], cO[2] - cA[2]]);
+    return [d[0], d[1], h + d[2]];
+  };
+
+  const pts = [centerInA(A), centerInA(B), centerInA(C)];
+  const sub = (p, q) => [p[0] - q[0], p[1] - q[1], p[2] - q[2]];
+  const len = v => Math.hypot(v[0], v[1], v[2]);
+  const angleAt = (pV, p1, p2) => {
+    const u = sub(p1, pV), v = sub(p2, pV);
+    const lu = len(u), lv = len(v);
+    if (lu < 1e-6 || lv < 1e-6) return 0;
+    const dot = (u[0]*v[0] + u[1]*v[1] + u[2]*v[2]) / (lu * lv);
+    return rad2deg(Math.acos(clamp(dot, -1, 1)));
+  };
+
+  const corners = [
+    { key: A.key, label: A.label, color: A.color, pt: pts[0], other1: pts[1], other2: pts[2], angleDeg: angleAt(pts[0], pts[1], pts[2]) },
+    { key: B.key, label: B.label, color: B.color, pt: pts[1], other1: pts[0], other2: pts[2], angleDeg: angleAt(pts[1], pts[0], pts[2]) },
+    { key: C.key, label: C.label, color: C.color, pt: pts[2], other1: pts[0], other2: pts[1], angleDeg: angleAt(pts[2], pts[0], pts[1]) },
+  ];
+  const u = sub(pts[1], pts[0]), v = sub(pts[2], pts[0]);
+  const cx = u[1]*v[2] - u[2]*v[1], cy = u[2]*v[0] - u[0]*v[2], cz = u[0]*v[1] - u[1]*v[0];
+  const areaCm2 = 0.5 * Math.hypot(cx, cy, cz) / 100.0;
+
+  let best90 = corners[0];
+  for (const c of corners) {
+    if (Math.abs(c.angleDeg - 90) < Math.abs(best90.angleDeg - 90)) best90 = c;
+  }
+
+  return {
+    corners,
+    sidesMm: {
+      ab: len(sub(pts[1], pts[0])),
+      ac: len(sub(pts[2], pts[0])),
+      bc: len(sub(pts[2], pts[1])),
+    },
+    areaCm2,
+    best90,
+  };
 }
 
 // --------- 3-Sekunden-Capture Mittelung (mit Ausreißer-Filterung) ---------
@@ -1409,6 +1501,8 @@ function aggregateCaptureSamples(samples, lastFrameSnap) {
     const dirAz = circularMeanStdDeg(list.map(r => r.dirAzimInA)).mean;
     const dirEl = circularMeanStdDeg(list.map(r => r.dirElevInA)).mean;
     const nAng = meanStd(list.map(r => r.normalAngleDeg)).mean;
+    const xzAng = meanStd(list.map(r => r.angleXZDeg)).mean;
+    const yzAng = meanStd(list.map(r => r.angleYZDeg)).mean;
     const tRot = meanStd(list.map(r => r.totalRotDeg)).mean;
     const rollX = circularMeanStdDeg(list.map(r => r.euler.rollX)).mean;
     const pitchY = circularMeanStdDeg(list.map(r => r.euler.pitchY)).mean;
@@ -1431,7 +1525,7 @@ function aggregateCaptureSamples(samples, lastFrameSnap) {
       distMm: dMm.mean, distCm: dMm.mean / 10.0, distStdMm: dMm.std,
       deltaInA: [dx, dy, dz],
       dirAzimInA: dirAz, dirElevInA: dirEl,
-      normalAngleDeg: nAng, totalRotDeg: tRot,
+      normalAngleDeg: nAng, angleXZDeg: xzAng, angleYZDeg: yzAng, totalRotDeg: tRot,
       euler: { rollX, pitchY, yawZ },
       bNormalInA: bNorm, bNormSph: bSph,
       samples: list.length,
@@ -1614,7 +1708,7 @@ function renderDetailsDrawer() {
         3D-Abstand: <strong>${r.distMm.toFixed(1)} mm</strong>${r.distStdMm !== null ? ` (±${r.distStdMm.toFixed(1)} mm)` : ""} · (${r.distCm.toFixed(2)} cm)<br>
         Versatz in ${r.aLabel}: <span class="mono">ΔX=${fmtSigned(r.deltaInA[0],1)}, ΔY=${fmtSigned(r.deltaInA[1],1)}, ΔZ=${fmtSigned(r.deltaInA[2],1)} mm</span><br>
         Richtung A→B: <span class="mono">Azim ${fmtSigned(r.dirAzimInA,1)}°, Elev ${fmtSigned(r.dirElevInA,1)}°</span><br>
-        Ausrichtung: <strong>Flächenwinkel ${r.normalAngleDeg.toFixed(1)}°</strong> · 3D-Drehung ${r.totalRotDeg.toFixed(1)}°<br>
+        Ausrichtung: <strong>XY ${r.normalAngleDeg.toFixed(1)}°</strong> · XZ ${(r.angleXZDeg??0).toFixed(1)}° · YZ ${(r.angleYZDeg??0).toFixed(1)}°<br>
         <span class="mono">Rel. Euler (R/P/Y): ${fmtSigned(r.euler.rollX,1)}° / ${fmtSigned(r.euler.pitchY,1)}° / ${fmtSigned(r.euler.yawZ,1)}°</span><br>
         <span class="mono">Normale B in A: (${r.bNormalInA.map(v => v.toFixed(4)).join(", ")}) [Az ${fmtSigned(r.bNormSph.azim,1)}°, El ${fmtSigned(r.bNormSph.elev,1)}°]</span>
       </div>`;
@@ -1622,6 +1716,18 @@ function renderDetailsDrawer() {
   } else {
     html += `<div class="sec-title">Relationen untereinander</div>
       <div class="detail-card" style="color:var(--muted);">Sobald 2 oder 3 Messwürfel (Marker 1–3) gleichzeitig im Bild sind, werden 3D-Abstand, ΔX/ΔY/ΔZ und Ausrichtung zueinander berechnet.</div>`;
+  }
+
+  const tri = computeTriangleFromSnapshot(s);
+  if (tri) {
+    const b90 = angleCheckBadge(tri.best90.angleDeg);
+    html += `<div class="sec-title">📐 3-Punkt-Dreieck / Bauwinkel (Mittelpunkte)</div>
+      <div class="detail-card" style="border-color:rgba(192,132,252,0.45);">
+        <strong>Innenwinkel (unabhängig von Würfeldrehung):</strong><br>
+        ${tri.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(2)}°</strong>`).join(" · ")}<br>
+        Ecke am nächsten an 90°: <strong>${tri.best90.label} (${tri.best90.angleDeg.toFixed(2)}°)</strong> <span class="${b90.cls}">${b90.text}</span><br>
+        <span class="mono">Seiten: ${tri.sidesMm.ab.toFixed(1)} / ${tri.sidesMm.bc.toFixed(1)} / ${tri.sidesMm.ac.toFixed(1)} mm · Fläche: ${tri.areaCm2.toFixed(1)} cm²</span>
+      </div>`;
   }
   detailsBody.innerHTML = html;
 }
@@ -1753,27 +1859,137 @@ function buildTextReport(s) {
       lines.push(`  3D-Abstand:             ${r.distMm.toFixed(2)} mm${r.distStdMm !== null ? ` (±${r.distStdMm.toFixed(2)} mm)` : ""} | ${r.distCm.toFixed(2)} cm`);
       lines.push(`  Versatz B in A (mm):    dX=${fmtSigned(r.deltaInA[0], 2)}, dY=${fmtSigned(r.deltaInA[1], 2)}, dZ=${fmtSigned(r.deltaInA[2], 2)}`);
       lines.push(`  Richtung A -> B in A:   Azimut=${fmtSigned(r.dirAzimInA, 2)} deg, Elevation=${fmtSigned(r.dirElevInA, 2)} deg`);
-      lines.push(`  Flächenwinkel (+Z/+Z):  ${r.normalAngleDeg.toFixed(2)} deg`);
+      lines.push(`  Flächenwinkel XY (+Z):  ${r.normalAngleDeg.toFixed(2)} deg`);
+      lines.push(`  Flächenwinkel XZ (-Y):  ${(r.angleXZDeg ?? 0).toFixed(2)} deg`);
+      lines.push(`  Flächenwinkel YZ (+X):  ${(r.angleYZDeg ?? 0).toFixed(2)} deg`);
       lines.push(`  3D-Gesamtdrehung:       ${r.totalRotDeg.toFixed(2)} deg`);
       lines.push(`  Rel. Euler (ZYX):       Roll(X)=${fmtSigned(r.euler.rollX, 2)} deg, Pitch(Y)=${fmtSigned(r.euler.pitchY, 2)} deg, Yaw(Z)=${fmtSigned(r.euler.yawZ, 2)} deg`);
       lines.push(`  Normale von B in A:     (${r.bNormalInA.map(v => v.toFixed(5)).join(", ")})`);
       lines.push(`  Normale B (Kugel in A): Azimut=${fmtSigned(r.bNormSph.azim, 2)} deg, Elevation=${fmtSigned(r.bNormSph.elev, 2)} deg`);
     }
   }
+  const triTxt = computeTriangleFromSnapshot(s);
+  if (triTxt) {
+    lines.push("");
+    lines.push("--- 3. 3-PUNKT-DREIECK / BAUWINKEL (MITTELPUNKTE, ORIENTIERUNGSUNABHÄNGIG) ---");
+    for (const c of triTxt.corners) {
+      lines.push(`  Innenwinkel an ${c.label}: ${c.angleDeg.toFixed(2)} deg  (Abweichung zu 90°: ${fmtSigned(c.angleDeg - 90, 2)} deg)`);
+    }
+    lines.push(`  Seitenlängen (mm):      M1-M2=${triTxt.sidesMm.ab.toFixed(2)}, M2-M3=${triTxt.sidesMm.bc.toFixed(2)}, M1-M3=${triTxt.sidesMm.ac.toFixed(2)}`);
+    lines.push(`  Dreiecksfläche:         ${triTxt.areaCm2.toFixed(2)} cm²`);
+  }
   lines.push("");
   return lines.join("\n");
 }
 
-function downloadReport() {
-  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
-    showToast("Erst Marker erfassen!");
-    return;
+function buildYamlReport(s) {
+  const num = (v, d = 3) => (v === null || v === undefined || !Number.isFinite(v) ? "null" : Number(v.toFixed(d)));
+  const lines = [
+    "schema_version: 1",
+    `timestamp: "${s.timestamp.toISOString()}"`,
+    `mode: ${s.isCapture ? "capture_average" : "live_frame"}`,
+    `total_frames: ${s.totalFrames}`,
+    "config:",
+    `  cube_size_mm: ${num(s.config.cubeSize, 2)}`,
+    `  marker_size_mm: ${num(s.config.markerSize, 2)}`,
+    `  pivot_z_mm: ${num(s.config.pivotZ, 2)}`,
+    `  focal_35mm: ${num(s.config.focal35, 2)}`,
+    "  resolution:",
+    `    width: ${s.config.width}`,
+    `    height: ${s.config.height}`,
+    "coordinate_system:",
+    "  handedness: right",
+    "  up: \"+Z\"",
+    "  right: \"+X\"",
+    "  front: \"-Y\"",
+    "  relation_reference_point: cube_center",
+    `  relation_reference_z_mm: ${num(s.config.cubeSize / 2, 2)}`,
+    "markers:",
+  ];
+  for (const o of s.objects) {
+    lines.push(`  - key: "${o.key}"`);
+    lines.push(`    label: "${o.label}"`);
+    lines.push(`    visible_face_ids: [${o.ids.join(", ")}]`);
+    lines.push(`    samples: ${o.samples}`);
+    lines.push(`    samples_total: ${o.samplesTotal ?? o.samples}`);
+    lines.push(`    rms_px: ${num(o.rms, 3)}`);
+    lines.push("    spherical:");
+    lines.push(`      angle_azimuth_deg: ${num(o.azim, 3)}`);
+    lines.push(`      angle_azimuth_std_deg: ${num(o.azimStd, 3)}`);
+    lines.push(`      angle_elevation_deg: ${num(o.elev, 3)}`);
+    lines.push(`      angle_elevation_std_deg: ${num(o.elevStd, 3)}`);
+    lines.push(`      pivot_z_mm: ${num(s.config.pivotZ, 2)}`);
+    lines.push(`    camera_distance_mm: ${num(o.distMm, 2)}`);
+    lines.push(`    camera_distance_std_mm: ${num(o.distStdMm, 2)}`);
+    lines.push("    camera_position_local_mm:");
+    lines.push(`      x: ${num(o.camPosMm[0], 2)}`);
+    lines.push(`      y: ${num(o.camPosMm[1], 2)}`);
+    lines.push(`      z: ${num(o.camPosMm[2], 2)}`);
+    lines.push("    view_normal_local:");
+    lines.push(`      x: ${num(o.normal[0], 5)}`);
+    lines.push(`      y: ${num(o.normal[1], 5)}`);
+    lines.push(`      z: ${num(o.normal[2], 5)}`);
   }
-  const text = buildTextReport(lastSnapshot);
+  lines.push(s.relations.length ? "relations:" : "relations: []");
+  for (const r of s.relations) {
+    lines.push(`  - from: "${r.aKey}"`);
+    lines.push(`    to: "${r.bKey}"`);
+    lines.push(`    from_label: "${r.aLabel}"`);
+    lines.push(`    to_label: "${r.bLabel}"`);
+    lines.push(`    samples: ${r.samples}`);
+    lines.push(`    distance_mm: ${num(r.distMm, 2)}`);
+    lines.push(`    distance_std_mm: ${num(r.distStdMm, 2)}`);
+    lines.push("    delta_in_from_mm:");
+    lines.push(`      dx: ${num(r.deltaInA[0], 2)}`);
+    lines.push(`      dy: ${num(r.deltaInA[1], 2)}`);
+    lines.push(`      dz: ${num(r.deltaInA[2], 2)}`);
+    lines.push("    direction_spherical_deg:");
+    lines.push(`      azimuth: ${num(r.dirAzimInA, 3)}`);
+    lines.push(`      elevation: ${num(r.dirElevInA, 3)}`);
+    lines.push("    plane_angles_deg:");
+    lines.push(`      xy_z_normal: ${num(r.normalAngleDeg, 3)}`);
+    lines.push(`      xz_y_normal: ${num(r.angleXZDeg, 3)}`);
+    lines.push(`      yz_x_normal: ${num(r.angleYZDeg, 3)}`);
+    lines.push(`    total_rotation_deg: ${num(r.totalRotDeg, 3)}`);
+    lines.push("    euler_zyx_deg:");
+    lines.push(`      roll_x: ${num(r.euler.rollX, 3)}`);
+    lines.push(`      pitch_y: ${num(r.euler.pitchY, 3)}`);
+    lines.push(`      yaw_z: ${num(r.euler.yawZ, 3)}`);
+    lines.push("    to_z_normal_in_from:");
+    lines.push(`      x: ${num(r.bNormalInA[0], 5)}`);
+    lines.push(`      y: ${num(r.bNormalInA[1], 5)}`);
+    lines.push(`      z: ${num(r.bNormalInA[2], 5)}`);
+    lines.push("    to_z_normal_spherical_deg:");
+    lines.push(`      azimuth: ${num(r.bNormSph.azim, 3)}`);
+    lines.push(`      elevation: ${num(r.bNormSph.elev, 3)}`);
+  }
+  const triYaml = computeTriangleFromSnapshot(s);
+  if (triYaml) {
+    lines.push("triangle_3point:");
+    lines.push("  corners:");
+    for (const c of triYaml.corners) {
+      lines.push(`    - key: "${c.key}"`);
+      lines.push(`      label: "${c.label}"`);
+      lines.push(`      interior_angle_deg: ${num(c.angleDeg, 3)}`);
+      lines.push(`      delta_to_90_deg: ${num(c.angleDeg - 90, 3)}`);
+    }
+    lines.push("  sides_mm:");
+    lines.push(`    ab: ${num(triYaml.sidesMm.ab, 2)}`);
+    lines.push(`    bc: ${num(triYaml.sidesMm.bc, 2)}`);
+    lines.push(`    ac: ${num(triYaml.sidesMm.ac, 2)}`);
+    lines.push(`  area_cm2: ${num(triYaml.areaCm2, 2)}`);
+  } else {
+    lines.push("triangle_3point: null");
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+function triggerFileDownload(content, mime, ext) {
   const d = lastSnapshot.timestamp;
   const pad = n => String(n).padStart(2, "0");
-  const fname = `messung_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}.txt`;
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const fname = `messung_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}.${ext}`;
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = fname;
@@ -1782,6 +1998,22 @@ function downloadReport() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast(`Exportiert: ${fname}`);
+}
+
+function downloadReport() {
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    showToast("Erst Marker erfassen!");
+    return;
+  }
+  triggerFileDownload(buildTextReport(lastSnapshot), "text/plain;charset=utf-8", "txt");
+}
+
+function downloadYamlReport() {
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    showToast("Erst Marker erfassen!");
+    return;
+  }
+  triggerFileDownload(buildYamlReport(lastSnapshot), "application/yaml;charset=utf-8", "yaml");
 }
 
 async function copyReport() {
@@ -2393,29 +2625,45 @@ function buildScene3D(snap) {
     badge: angleCheckBadge(r.normalAngleDeg),
   })).filter(p => p.a && p.b);
 
-  return { snap, cubeSize, cubes, pairs, camPos, center, span, gridStep };
+  const triangle = computeTriangleFromSnapshot(snap);
+  return { snap, cubeSize, cubes, pairs, triangle, camPos, center, span, gridStep };
 }
 
 function renderView3DCards(scene) {
-  const { snap, pairs } = scene;
+  const { snap, pairs, triangle } = scene;
   v3dBadge.textContent = `${snap.isCapture ? "Capture Ø" : "Live"} · ${snap.objects.length} Marker`;
+  const refObj = snap.objects[0];
   let html = "";
+  if (triangle) {
+    const b90 = angleCheckBadge(triangle.best90.angleDeg);
+    html += `<div class="v3d-card" style="border-color:rgba(192,132,252,0.55);background:rgba(168,85,247,0.1);">
+      <strong>📐 3-Punkt-Bauwinkel (Mittelpunkte)</strong>
+      <span class="${b90.cls}">${b90.text}</span><br>
+      ${triangle.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(1)}°</strong>`).join(" · ")}<br>
+      <span class="mono">Unabhängig von Würfeldrehung · Fläche ${triangle.areaCm2.toFixed(1)} cm²</span>
+    </div>`;
+  }
   if (pairs.length > 0) {
-    for (const { rel: r, badge } of pairs) {
+    for (const { rel: r } of pairs) {
+      const pa = planeAngleForRel(r, v3dRefPlane);
+      const badge = angleCheckBadge(pa.deg);
       html += `<div class="v3d-card">
         <strong>${r.aLabel} ↔ ${r.bLabel}</strong>
         <span class="${badge.cls}">${badge.text}</span><br>
         Abstand: <strong>${r.distMm.toFixed(1)} mm</strong> (${r.distCm.toFixed(2)} cm)${r.distStdMm !== null ? ` <span class="mono">±${r.distStdMm.toFixed(1)}</span>` : ""} ·
         <span class="mono">Δ(${fmtSigned(r.deltaInA[0],1)}, ${fmtSigned(r.deltaInA[1],1)}, ${fmtSigned(r.deltaInA[2],1)}) mm</span><br>
-        <span class="mono">Flächenwinkel: ${r.normalAngleDeg.toFixed(1)}° · 3D-Rot: ${r.totalRotDeg.toFixed(1)}° · Euler R/P/Y: ${fmtSigned(r.euler.rollX,1)}°/${fmtSigned(r.euler.pitchY,1)}°/${fmtSigned(r.euler.yawZ,1)}°</span>
+        <span class="mono">Winkel ${pa.tag}: <strong>${pa.deg.toFixed(1)}°</strong> · XY ${(r.normalAngleDeg??0).toFixed(1)}° · XZ ${(r.angleXZDeg??0).toFixed(1)}° · YZ ${(r.angleYZDeg??0).toFixed(1)}°</span>
       </div>`;
     }
+    html += `<div class="v3d-card" style="padding:6px 10px;">
+      <strong>📷 Kamera zu ${refObj.label}:</strong>
+      Azimut <strong>${fmtSigned(refObj.azim, 1)}°</strong> · Elevation <strong>${fmtSigned(refObj.elev, 1)}°</strong> · Abstand <strong>${refObj.distCm.toFixed(1)} cm</strong>
+    </div>`;
   } else {
-    const o = snap.objects[0];
     html = `<div class="v3d-card">
-      <strong style="color:${o.color};">${o.label}</strong> <span class="mono">(Einzel-Marker · Basis Z=0)</span><br>
-      Blickwinkel: <strong>Azimut ${fmtSigned(o.azim, 1)}°</strong> · <strong>Elevation ${fmtSigned(o.elev, 1)}°</strong> · Abstand <strong>${o.distCm.toFixed(1)} cm</strong><br>
-      <span class="mono">Tipp: 2 oder 3 Messwürfel gleichzeitig erfassen, um Wandwinkel (90°-Check) & Abstände im 3D-Raum zu prüfen.</span>
+      <strong style="color:${refObj.color};">${refObj.label}</strong> <span class="mono">(Einzel-Marker · Basis Z=0)</span><br>
+      📷 Kamera: <strong>Azimut ${fmtSigned(refObj.azim, 1)}°</strong> · <strong>Elevation ${fmtSigned(refObj.elev, 1)}°</strong> · Abstand <strong>${refObj.distCm.toFixed(1)} cm</strong><br>
+      <span class="mono">Kamera XYZ: (${refObj.camPosMm.map(v => v.toFixed(0)).join(", ")}) mm · 2–3 Marker für Wandwinkel-Check erfassen.</span>
     </div>`;
   }
   v3dCards.innerHTML = html;
@@ -2435,8 +2683,8 @@ function renderView3D() {
   v3dCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   v3dCtx.clearRect(0, 0, W, H);
 
-  const { cubeSize, cubes, pairs, camPos, center, span, gridStep } = v3dScene;
-  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster: ${gridStep} mm`;
+  const { cubeSize, cubes, pairs, triangle, camPos, center, span, gridStep } = v3dScene;
+  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster: ${gridStep} mm · Ebene: ${v3dRefPlane.toUpperCase()}`;
 
   // Orbit-Kamera um Szenen-Zentrum
   const az = deg2rad(v3dAz), el = deg2rad(v3dEl);
@@ -2662,8 +2910,73 @@ function renderView3D() {
     }
   }
 
-  // 4. Paarweise Abstände (immer exakt Würfelmittelpunkt <-> Würfelmittelpunkt), ΔX/ΔY/ΔZ & 90°-Winkel-Pillen
-  for (const { rel: r, a, b, badge } of pairs) {
+  // 3b. 3-Punkt-Dreieck / Bauwinkel (Mittelpunkte, unabhängig von Würfeldrehung!)
+  if (triangle) {
+    const tPts = triangle.corners.map(c => proj(c.pt));
+    if (tPts.every(Boolean)) {
+      v3dCtx.save();
+      v3dCtx.beginPath();
+      v3dCtx.moveTo(tPts[0][0], tPts[0][1]);
+      v3dCtx.lineTo(tPts[1][0], tPts[1][1]);
+      v3dCtx.lineTo(tPts[2][0], tPts[2][1]);
+      v3dCtx.closePath();
+      v3dCtx.fillStyle = "rgba(192,132,252,0.14)";
+      v3dCtx.fill();
+      v3dCtx.strokeStyle = "rgba(192,132,252,0.75)";
+      v3dCtx.lineWidth = 1.6;
+      v3dCtx.stroke();
+
+      // Winkelbögen + Innenwinkel-Badges an allen 3 Ecken
+      for (const c of triangle.corners) {
+        const u = [c.other1[0] - c.pt[0], c.other1[1] - c.pt[1], c.other1[2] - c.pt[2]];
+        const v = [c.other2[0] - c.pt[0], c.other2[1] - c.pt[1], c.other2[2] - c.pt[2]];
+        const lu = Math.hypot(u[0], u[1], u[2]) || 1;
+        const lv = Math.hypot(v[0], v[1], v[2]) || 1;
+        const un = [u[0]/lu, u[1]/lu, u[2]/lu];
+        const vn = [v[0]/lv, v[1]/lv, v[2]/lv];
+        const arcR = Math.min(lu, lv) * 0.28;
+        const isRight = Math.abs(c.angleDeg - 90) <= 1.5;
+
+        v3dCtx.beginPath();
+        let started = false;
+        for (let s = 0; s <= 12; s++) {
+          const f = s / 12;
+          const dir = [un[0]*(1-f) + vn[0]*f, un[1]*(1-f) + vn[1]*f, un[2]*(1-f) + vn[2]*f];
+          const dl = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+          const ap = proj([c.pt[0] + dir[0]/dl * arcR, c.pt[1] + dir[1]/dl * arcR, c.pt[2] + dir[2]/dl * arcR]);
+          if (!ap) continue;
+          if (!started) { v3dCtx.moveTo(ap[0], ap[1]); started = true; } else v3dCtx.lineTo(ap[0], ap[1]);
+        }
+        v3dCtx.strokeStyle = isRight ? "#22c55e" : "#e879f9";
+        v3dCtx.lineWidth = 2.4;
+        v3dCtx.stroke();
+
+        // Winkel-Badge innen nahe der Ecke
+        const bis = [un[0] + vn[0], un[1] + vn[1], un[2] + vn[2]];
+        const bl = Math.hypot(bis[0], bis[1], bis[2]) || 1;
+        const lp = proj([c.pt[0] + bis[0]/bl * (arcR * 1.45), c.pt[1] + bis[1]/bl * (arcR * 1.45), c.pt[2] + bis[2]/bl * (arcR * 1.45)]);
+        if (lp) {
+          const txt = `∠ ${c.angleDeg.toFixed(1)}°${isRight ? " ✓" : ""}`;
+          v3dCtx.font = "700 11px -apple-system, system-ui, sans-serif";
+          const tw = v3dCtx.measureText(txt).width + 10;
+          v3dCtx.fillStyle = "rgba(15,23,42,0.92)";
+          v3dCtx.strokeStyle = isRight ? "#22c55e" : "#c084fc";
+          v3dCtx.lineWidth = 1.4;
+          v3dCtx.fillRect(lp[0] - tw / 2, lp[1] - 10, tw, 20);
+          v3dCtx.strokeRect(lp[0] - tw / 2, lp[1] - 10, tw, 20);
+          v3dCtx.fillStyle = isRight ? "#bbf7d0" : "#f5d0fe";
+          v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
+          v3dCtx.fillText(txt, lp[0], lp[1]);
+        }
+      }
+      v3dCtx.restore();
+    }
+  }
+
+  // 4. Paarweise Abstände (immer exakt Würfelmittelpunkt <-> Würfelmittelpunkt), ΔX/ΔY/ΔZ & Flächenwinkel-Pillen
+  for (const { rel: r, a, b } of pairs) {
+    const pa = planeAngleForRel(r, v3dRefPlane);
+    const badge = angleCheckBadge(pa.deg);
     const pA = a.center3D, pB = b.center3D;
     if (v3dShowDeltas) {
       const pX = [pB[0], pA[1], pA[2]];
@@ -2685,20 +2998,20 @@ function renderView3D() {
       const mp = proj(mid3);
       if (mp) {
         const isGood = badge.cls === "v3d-badge-ok";
-        const label = `${r.distMm.toFixed(1)} mm · ∠ ${r.normalAngleDeg.toFixed(1)}° (${badge.short})`;
+        const label = `${r.distMm.toFixed(1)} mm · ${v3dRefPlane.toUpperCase()} ${pa.deg.toFixed(1)}° (${badge.short})`;
         v3dCtx.save();
-        v3dCtx.font = "700 11.5px -apple-system, system-ui, sans-serif";
-        const tw = v3dCtx.measureText(label).width + 16;
+        v3dCtx.font = "700 11px -apple-system, system-ui, sans-serif";
+        const tw = v3dCtx.measureText(label).width + 14;
         v3dCtx.fillStyle = "rgba(15,23,42,0.94)";
         v3dCtx.strokeStyle = isGood ? "#22c55e" : "#f59e0b";
         v3dCtx.lineWidth = 1.6;
         if (typeof v3dCtx.roundRect === "function") {
           v3dCtx.beginPath();
-          v3dCtx.roundRect(mp[0] - tw / 2, mp[1] - 12, tw, 24, 8);
+          v3dCtx.roundRect(mp[0] - tw / 2, mp[1] - 11, tw, 22, 8);
           v3dCtx.fill(); v3dCtx.stroke();
         } else {
-          v3dCtx.fillRect(mp[0] - tw / 2, mp[1] - 12, tw, 24);
-          v3dCtx.strokeRect(mp[0] - tw / 2, mp[1] - 12, tw, 24);
+          v3dCtx.fillRect(mp[0] - tw / 2, mp[1] - 11, tw, 22);
+          v3dCtx.strokeRect(mp[0] - tw / 2, mp[1] - 11, tw, 22);
         }
         v3dCtx.fillStyle = isGood ? "#bbf7d0" : "#fde68a";
         v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
@@ -2708,21 +3021,59 @@ function renderView3D() {
     }
   }
 
-  // 5. Optionale Kamera-Position & Blickstrahl
+  // 5. Kamera-Position (3D-Frustum + Azimut/Elevations-Projektion + Winkel-Badge)
   if (v3dShowCam) {
+    const refObj = v3dScene.snap.objects[0];
     const targetPt = [0, 0, h];
-    drawSeg(camPos, targetPt, "rgba(248,250,252,0.45)", 1.5, [4, 4]);
+    const camGround = [camPos[0], camPos[1], 0];
+    // Blickstrahl + Bodenprojektion (zeigt Azimut auf Z=0 & Elevation über Boden!)
+    drawSeg([0, 0, 0], camGround, "rgba(34,197,94,0.45)", 1.3, [4, 4]);
+    drawSeg(camGround, camPos, "rgba(56,189,248,0.45)", 1.3, [3, 3]);
+    drawSeg(camPos, targetPt, "rgba(248,250,252,0.55)", 1.6, [5, 4]);
+
+    // 3D-Kamera-Pyramide (Frustum) Richtung Marker 1
+    let cFwd = [targetPt[0] - camPos[0], targetPt[1] - camPos[1], targetPt[2] - camPos[2]];
+    const cFl = Math.hypot(cFwd[0], cFwd[1], cFwd[2]) || 1;
+    cFwd = [cFwd[0]/cFl, cFwd[1]/cFl, cFwd[2]/cFl];
+    const cUp0 = Math.abs(cFwd[2]) > 0.98 ? [0, 1, 0] : [0, 0, 1];
+    let cRight = [cFwd[1]*cUp0[2]-cFwd[2]*cUp0[1], cFwd[2]*cUp0[0]-cFwd[0]*cUp0[2], cFwd[0]*cUp0[1]-cFwd[1]*cUp0[0]];
+    const cRl = Math.hypot(cRight[0], cRight[1], cRight[2]) || 1;
+    cRight = [cRight[0]/cRl, cRight[1]/cRl, cRight[2]/cRl];
+    const cUp = [cRight[1]*cFwd[2]-cRight[2]*cFwd[1], cRight[2]*cFwd[0]-cRight[0]*cFwd[2], cRight[0]*cFwd[1]-cRight[1]*cFwd[0]];
+    const fDepth = Math.max(22, cubeSize * 0.55);
+    const fW = fDepth * 0.62, fH = fDepth * 0.42;
+    const fBase = [
+      [1, 1], [-1, 1], [-1, -1], [1, -1]
+    ].map(([sx, sy]) => [
+      camPos[0] + cFwd[0]*fDepth + cRight[0]*sx*fW + cUp[0]*sy*fH,
+      camPos[1] + cFwd[1]*fDepth + cRight[1]*sx*fW + cUp[1]*sy*fH,
+      camPos[2] + cFwd[2]*fDepth + cRight[2]*sx*fW + cUp[2]*sy*fH,
+    ]);
+    for (let k = 0; k < 4; k++) {
+      drawSeg(camPos, fBase[k], "#38bdf8", 1.5);
+      drawSeg(fBase[k], fBase[(k + 1) % 4], "#38bdf8", 1.5);
+    }
+
     const cp = proj(camPos);
     if (cp) {
+      const cTag = `📷 ${refObj.distCm.toFixed(1)} cm · Az ${fmtSigned(refObj.azim,1)}° · El ${fmtSigned(refObj.elev,1)}°`;
       v3dCtx.save();
       v3dCtx.fillStyle = "#f8fafc";
       v3dCtx.strokeStyle = "#38bdf8";
       v3dCtx.lineWidth = 2;
-      v3dCtx.beginPath(); v3dCtx.arc(cp[0], cp[1], 6, 0, Math.PI * 2); v3dCtx.fill(); v3dCtx.stroke();
-      v3dCtx.font = "700 11px -apple-system, system-ui, sans-serif";
+      v3dCtx.beginPath(); v3dCtx.arc(cp[0], cp[1], 5, 0, Math.PI * 2); v3dCtx.fill(); v3dCtx.stroke();
+      v3dCtx.font = "700 10.5px -apple-system, system-ui, sans-serif";
+      const tw = v3dCtx.measureText(cTag).width + 12;
+      const bx = clamp(cp[0], tw / 2 + 6, W - tw / 2 - 6);
+      const by = clamp(cp[1] - 18, 16, H - 16);
+      v3dCtx.fillStyle = "rgba(15,23,42,0.92)";
+      v3dCtx.strokeStyle = "rgba(56,189,248,0.75)";
+      v3dCtx.lineWidth = 1.3;
+      v3dCtx.fillRect(bx - tw / 2, by - 10, tw, 20);
+      v3dCtx.strokeRect(bx - tw / 2, by - 10, tw, 20);
       v3dCtx.fillStyle = "#e0f2fe";
-      v3dCtx.textAlign = "center";
-      v3dCtx.fillText(`📷 Kamera (${(v3dScene.snap.objects[0].distCm).toFixed(0)} cm)`, cp[0], cp[1] - 13);
+      v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
+      v3dCtx.fillText(cTag, bx, by);
       v3dCtx.restore();
     }
   }
@@ -2773,6 +3124,15 @@ document.querySelectorAll(".v3d-pill[data-preset]").forEach(btn => {
   });
 });
 
+document.querySelectorAll(".v3d-pill.plane").forEach(btn => {
+  btn.addEventListener("click", () => {
+    v3dRefPlane = btn.dataset.plane || "xy";
+    document.querySelectorAll(".v3d-pill.plane").forEach(b => b.classList.toggle("active", b === btn));
+    if (v3dScene) renderView3DCards(v3dScene);
+    renderView3D();
+  });
+});
+
 btn3dDeltas.addEventListener("click", () => {
   v3dShowDeltas = !v3dShowDeltas;
   btn3dDeltas.classList.toggle("active", v3dShowDeltas);
@@ -2783,6 +3143,11 @@ btn3dCam.addEventListener("click", () => {
   btn3dCam.classList.toggle("active", v3dShowCam);
   renderView3D();
 });
+
+// Versehentliches Safari-Browser-Zoomen (Pinch / Gesture) außerhalb des 3D-Canvas blockieren
+for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
+  document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+}
 
 // Touch-Orbit (1 Finger, natürliche Wischrichtung) & Pinch-Zoom (2 Finger) + Mausrad
 view3dCanvas.addEventListener("pointerdown", e => {
