@@ -192,7 +192,7 @@
     text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1px;
   }
 
-  /* BOTTOM ACTION BAR (4 großzügige Buttons, responsive ab 320 px) */
+  /* BOTTOM ACTION BAR (3 großzügige Buttons) */
   #bottomBar {
     flex: none;
     pointer-events: auto;
@@ -202,8 +202,28 @@
     border-radius: 16px;
     padding: 6px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.9fr) minmax(0, 1.05fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr) minmax(0, 1fr);
     gap: 6px;
+  }
+  .start-cta {
+    width: 100%; height: 48px; margin-top: 10px;
+    border-radius: 12px; border: 1px solid #3b82f6;
+    background: var(--blue); color: #fff;
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    cursor: pointer; box-shadow: 0 8px 22px rgba(37, 99, 235, 0.42);
+  }
+  .start-cta:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+  #startCenterWrap {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: auto; z-index: 19;
+    display: none;
+  }
+  #startCenterWrap.visible { display: block; }
+  #startCenterWrap .start-cta {
+    width: auto; min-width: 210px; height: 54px; margin-top: 0;
+    padding: 0 24px; border-radius: 16px; font-size: 16px;
   }
   button.act {
     min-width: 0;
@@ -466,6 +486,7 @@
       <span class="hud-title">ArUco 3D-Messwerkzeug</span>
       <div class="hud-actions">
         <span id="status" class="badge warn">Lade OpenCV…</span>
+        <button id="btnStopCam" class="icon-btn" title="Kamera stoppen" style="display:none;color:#fca5a5;">■</button>
         <button id="btnGuide" class="icon-btn active" title="Würfel-Ausrichtung anzeigen">?</button>
         <button id="btnToggleWidgets" class="icon-btn active" title="Widgets ein/aus">◎</button>
         <button id="btnSettings" class="icon-btn" title="Einstellungen & 3D-Dateien">⚙</button>
@@ -517,10 +538,16 @@
           </div>
           <div class="guide-row">
             <span class="gdot" style="background:#22c55e;"></span>
-            <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen, dann <strong>▶ Start</strong> tippen.</div>
+            <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen.</div>
           </div>
         </div>
+        <button id="btnStartGuide" class="start-cta" disabled>⏳ Lade OpenCV…</button>
       </div>
+    </div>
+
+    <!-- ZENTRALER START-BUTTON (falls Schematik ausgeblendet & Kamera aus) -->
+    <div id="startCenterWrap">
+      <button id="btnStartCenter" class="start-cta" disabled>⏳ Lade OpenCV…</button>
     </div>
 
     <!-- CORNER WIDGETS -->
@@ -538,7 +565,6 @@
 
   <!-- BOTTOM ACTION BAR -->
   <div id="bottomBar">
-    <button id="btnStart" class="act primary" disabled>▶ Start</button>
     <button id="btnCapture" class="act" disabled>⏺ Capture</button>
     <button id="btnView3D" class="act view3d" disabled>🧊 3D</button>
     <button id="btnDetails" class="act export">☰ Details</button>
@@ -640,7 +666,8 @@
     <button id="btnClose3D" class="icon-btn" title="Schließen">✕</button>
   </div>
   <div class="v3d-toolbar">
-    <button class="v3d-pill active" data-preset="iso">3D Iso</button>
+    <button class="v3d-pill active" data-preset="cam">📷 Sicht</button>
+    <button class="v3d-pill" data-preset="iso">3D Iso</button>
     <button class="v3d-pill" data-preset="top">Oben (XY)</button>
     <button class="v3d-pill" data-preset="front">Vorne (XZ)</button>
     <button class="v3d-pill" data-preset="right">Rechts (YZ)</button>
@@ -766,7 +793,10 @@ const capTitle = document.getElementById("capTitle");
 const capSub = document.getElementById("capSub");
 const capBar = document.getElementById("capBar");
 
-const btnStart = document.getElementById("btnStart");
+const btnStartGuide = document.getElementById("btnStartGuide");
+const btnStartCenter = document.getElementById("btnStartCenter");
+const startCenterWrap = document.getElementById("startCenterWrap");
+const btnStopCam = document.getElementById("btnStopCam");
 const btnCapture = document.getElementById("btnCapture");
 const btnView3D = document.getElementById("btnView3D");
 const btnDetails = document.getElementById("btnDetails");
@@ -1773,7 +1803,7 @@ function resetCaptureUI() {
   captureSamples = [];
   captureOverlay.classList.remove("visible");
   btnCapture.textContent = "⏺ Capture";
-  btnCapture.classList.remove("recording", "active");
+  btnCapture.classList.remove("recording", "active", "primary");
 }
 
 function loop(now) {
@@ -1837,9 +1867,9 @@ function loop(now) {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             drawOverlay(avgSnap);
             updateHUD(avgSnap);
-            btnCapture.textContent = "▶ Weiter";
-            btnCapture.classList.remove("recording");
-            btnCapture.classList.add("active");
+            btnCapture.textContent = "⏸ Fortsetzen";
+            btnCapture.classList.remove("recording", "active");
+            btnCapture.classList.add("primary");
             showToast(`Fertig: Ø aus ${avgSnap.totalFrames} Samples`);
             return;
           }
@@ -1855,21 +1885,15 @@ function loop(now) {
   }
 }
 
-btnStart.addEventListener("click", async () => {
-  if (streaming) {
-    streaming = false;
-    resetCaptureUI();
-    if (streamRef) streamRef.getTracks().forEach(t => t.stop());
-    streamRef = null;
-    btnStart.textContent = "▶ Start";
-    btnStart.classList.remove("active");
-    btnStart.classList.add("primary");
-    btnCapture.disabled = true;
-    statusEl.textContent = "Bereit";
-    statusEl.className = "badge ok";
-    setGuideVisible(true);
-    return;
-  }
+function updateStartButtonsUI() {
+  const showCenter = !streaming && !guideVisible;
+  startCenterWrap.classList.toggle("visible", showCenter);
+  btnStartGuide.style.display = streaming ? "none" : "flex";
+  btnStopCam.style.display = streaming ? "inline-flex" : "none";
+}
+
+async function startCamera() {
+  if (streaming || !cvReady) return;
   try {
     streamRef = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -1880,17 +1904,32 @@ btnStart.addEventListener("click", async () => {
     streaming = true;
     setGuideVisible(false);
     resetCaptureUI();
-    btnStart.textContent = "■ Stop";
-    btnStart.classList.remove("primary");
-    btnStart.classList.add("active");
     btnCapture.disabled = false;
+    updateStartButtonsUI();
     requestAnimationFrame(loop);
   } catch (err) {
     statusEl.textContent = "HTTPS nötig";
     statusEl.className = "badge warn";
     vMeta.textContent = `Kamera blockiert: ${err.message}`;
   }
-});
+}
+
+function stopCamera() {
+  if (!streaming) return;
+  streaming = false;
+  resetCaptureUI();
+  if (streamRef) streamRef.getTracks().forEach(t => t.stop());
+  streamRef = null;
+  btnCapture.disabled = true;
+  statusEl.textContent = "Bereit";
+  statusEl.className = "badge ok";
+  setGuideVisible(true);
+  updateStartButtonsUI();
+}
+
+btnStartGuide.addEventListener("click", startCamera);
+btnStartCenter.addEventListener("click", startCamera);
+btnStopCam.addEventListener("click", stopCamera);
 
 btnCapture.addEventListener("click", () => {
   if (!streaming) return;
@@ -1944,6 +1983,7 @@ function setGuideVisible(show) {
   guideVisible = show;
   guideOverlay.classList.toggle("hidden", !show);
   btnGuide.classList.toggle("active", show);
+  updateStartButtonsUI();
   if (show && !guideRaf) {
     guideRaf = requestAnimationFrame(renderGuideFrame);
   }
@@ -1952,7 +1992,7 @@ function setGuideVisible(show) {
 btnGuide.addEventListener("click", () => setGuideVisible(!guideVisible));
 btnCloseGuide.addEventListener("click", () => setGuideVisible(false));
 
-// Touch/Maus-Drehung der 3D-Schematik
+// Touch/Maus-Drehung der 3D-Schematik (natürliche Richtung: Wischen folgt dem Finger)
 guideCanvas.addEventListener("pointerdown", e => {
   guideManual = true;
   guideDrag = { x: e.clientX, y: e.clientY, az: guideAz, el: guideEl };
@@ -1960,7 +2000,7 @@ guideCanvas.addEventListener("pointerdown", e => {
 });
 guideCanvas.addEventListener("pointermove", e => {
   if (!guideDrag) return;
-  guideAz = guideDrag.az + (e.clientX - guideDrag.x) * 0.65;
+  guideAz = guideDrag.az - (e.clientX - guideDrag.x) * 0.65;
   guideEl = clamp(guideDrag.el + (e.clientY - guideDrag.y) * 0.45, -15, 78);
 });
 const endGuideDrag = () => { guideDrag = null; };
@@ -2694,10 +2734,14 @@ function openView3D() {
     return;
   }
   v3dScene = buildScene3D(lastSnapshot);
-  v3dAz = 34; v3dEl = 28; v3dZoom = 1.0;
+  // Startperspektive = echte aktuelle Kamerasicht auf Marker 1 (intuitiver Abgleich mit der Realität!)
+  const refObj = lastSnapshot.objects[0];
+  v3dAz = Number.isFinite(refObj.azim) ? refObj.azim : 34;
+  v3dEl = Number.isFinite(refObj.elev) ? clamp(refObj.elev, 5, 78) : 28;
+  v3dZoom = 1.0;
   v3dOpen = true;
   view3dOverlay.classList.add("open");
-  document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b.dataset.preset === "iso"));
+  document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b.dataset.preset === "cam"));
   renderView3DCards(v3dScene);
   requestAnimationFrame(renderView3D);
 }
@@ -2714,6 +2758,12 @@ window.addEventListener("resize", () => { if (v3dOpen) renderView3D(); });
 document.querySelectorAll(".v3d-pill[data-preset]").forEach(btn => {
   btn.addEventListener("click", () => {
     const p = btn.dataset.preset;
+    if (p === "cam" && v3dScene) {
+      const refObj = v3dScene.snap.objects[0];
+      v3dAz = Number.isFinite(refObj.azim) ? refObj.azim : 34;
+      v3dEl = Number.isFinite(refObj.elev) ? clamp(refObj.elev, 5, 78) : 28;
+      v3dZoom = 1.0;
+    }
     if (p === "iso")   { v3dAz = 34; v3dEl = 28; v3dZoom = 1.0; }
     if (p === "top")   { v3dAz = 0;  v3dEl = 88; v3dZoom = 1.05; }
     if (p === "front") { v3dAz = 0;  v3dEl = 4;  v3dZoom = 1.05; }
@@ -2734,7 +2784,7 @@ btn3dCam.addEventListener("click", () => {
   renderView3D();
 });
 
-// Touch-Orbit (1 Finger) & Pinch-Zoom (2 Finger) + Mausrad
+// Touch-Orbit (1 Finger, natürliche Wischrichtung) & Pinch-Zoom (2 Finger) + Mausrad
 view3dCanvas.addEventListener("pointerdown", e => {
   view3dCanvas.setPointerCapture(e.pointerId);
   v3dPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -2758,7 +2808,7 @@ view3dCanvas.addEventListener("pointermove", e => {
       renderView3D();
     }
   } else if (v3dPointers.size === 1 && v3dDragStart) {
-    v3dAz = v3dDragStart.az + (e.clientX - v3dDragStart.x) * 0.55;
+    v3dAz = v3dDragStart.az - (e.clientX - v3dDragStart.x) * 0.55;
     v3dEl = clamp(v3dDragStart.el + (e.clientY - v3dDragStart.y) * 0.45, -80, 88);
     document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.remove("active"));
     renderView3D();
@@ -2816,7 +2866,10 @@ window.Module = {
     cvReady = true;
     statusEl.textContent = "Bereit";
     statusEl.className = "badge ok";
-    btnStart.disabled = false;
+    btnStartGuide.disabled = false;
+    btnStartGuide.textContent = "▶ Kamera starten";
+    btnStartCenter.disabled = false;
+    btnStartCenter.textContent = "▶ Kamera starten";
   }
 };
 </script>
