@@ -15,6 +15,7 @@ Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS S
 - **Direkter `.txt`-Export & Zwischenablage:** Strukturierter Messbericht für CAD-Workflows, Dokumentation oder Weiterverarbeitung.
 - **Frei skalierbare Würfelgröße:** Die 48-mm-Würfel lassen sich im Slicer beliebig gleichmäßig skalieren (z. B. 30 mm, 36 mm, 60 mm) — die neue Kantenlänge wird einfach in den Einstellungen (`⚙`) eingetragen (das Marker-Verhältnis von exakt `75 %` bleibt dabei erhalten).
 - **Interaktive 3D-Start-Schematik:** Animierter, frei drehbarer 3D-Würfel beim Start (jederzeit über `?` aufrufbar), der `+X / -Y / +Z`, Boden (`Z = 0`) und die **3 mm Orientierungsfase unten rechts** eindeutig zeigt.
+- **PWA & 100 % Offline-Modus (Add to Home Screen):** Vollständige Progressive Web App (`manifest.webmanifest`, App-Icons, Service Worker `sw.js`). Einmal über GitHub Pages geöffnet, werden App und `OpenCV.js` lokal gecacht — danach per *Teilen → Zum Home-Bildschirm* als Vollbild-App auch komplett **offline (z. B. Tiefgarage / Flugmodus)** nutzbar.
 - **Bambu-Studio- / AMS-fertige 3MF-Dateien:** Alle 3 Würfel flächenbündig als 2-Farb-Baugruppen (`PLA Matte Weiß` + `PLA Matte Schwarz`), sowohl einzeln als auch zusammen auf einer Druckplatte.
 
 ---
@@ -28,7 +29,8 @@ Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS S
    ```text
    https://<dein-benutzername>.github.io/<repo-name>/
    ```
-4. URL direkt auf dem Smartphone öffnen (HTTPS ist für den Kamerazugriff in iOS Safari / Chrome zwingend erforderlich).
+4. URL direkt auf dem Smartphone öffnen (HTTPS ist für Kamerazugriff und Service Worker erforderlich).
+5. **Als Offline-App installieren (iOS Safari):** Auf das **Teilen-Symbol → „Zum Home-Bildschirm“** tippen. Sobald die App einmalig online geöffnet wurde, liegen Oberfläche und `OpenCV.js` lokal im Cache und funktionieren danach auch **komplett ohne Internetverbindung**.
 
 ### Option B: Lokaler HTTPS-Server im WLAN (macOS / Linux)
 ```bash
@@ -112,12 +114,15 @@ Mit der **Bohrung nach unten (`Z = 0`)** und der **3 mm Fase unten rechts**:
 ```text
 .
 ├── .github/workflows/deploy-pages.yml   # CI-Validierung & GitHub-Pages-Deployment
+├── icons/                               # iOS Apple-Touch-Icon & PWA-App-Icons (PNG)
 ├── models/                              # 3D-Messwürfel (3MF, STEP, SC)
 │   ├── messwuerfel-alle-3.3mf
 │   ├── messwuerfel-1.{3mf,step,sc}
 │   ├── messwuerfel-2.{3mf,step,sc}
 │   └── messwuerfel-3.{3mf,step,sc}
 ├── index.html                           # Mobile-First Web-App (OpenCV.js)
+├── manifest.webmanifest                 # PWA-Manifest (Add to Home Screen)
+├── sw.js                                # Offline-Service-Worker (App + OpenCV.js Cache)
 ├── start_live_server.sh                 # Lokaler HTTPS-Server fürs WLAN
 ├── LICENSE                              # MIT-Lizenz
 └── README.md

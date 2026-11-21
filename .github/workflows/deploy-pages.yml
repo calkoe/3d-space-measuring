@@ -41,13 +41,24 @@ jobs:
           if res.returncode != 0:
               print(res.stderr)
               raise SystemExit(res.returncode)
-          print("JS syntax check: OK")
+          res_sw = subprocess.run(["node", "--check", "sw.js"], capture_output=True, text=True)
+          if res_sw.returncode != 0:
+              print(res_sw.stderr)
+              raise SystemExit(res_sw.returncode)
+          print("JS & Service Worker syntax check: OK")
           PY
 
-      - name: Verify model download links & 3MF integrity
+      - name: Verify PWA manifest, icons, model links & 3MF integrity
         run: |
           python3 - <<'PY'
-          import os, re, zipfile, xml.etree.ElementTree as ET
+          import json, os, re, zipfile, xml.etree.ElementTree as ET
+
+          manifest = json.load(open("manifest.webmanifest", encoding="utf-8"))
+          assert manifest.get("name") and manifest.get("icons"), "Invalid manifest.webmanifest"
+          for icon in manifest["icons"]:
+              assert os.path.isfile(icon["src"]), f"Missing icon: {icon['src']}"
+          assert os.path.isfile("icons/apple-touch-icon.png"), "Missing apple-touch-icon.png"
+          print("PWA manifest & icons: OK")
 
           html = open("index.html", encoding="utf-8").read()
           links = re.findall(r'href="(models/[^"]+)"', html)
@@ -85,8 +96,8 @@ jobs:
       - name: Stage static site (_site)
         run: |
           mkdir -p _site
-          cp index.html _site/index.html
-          cp -r models _site/models
+          cp index.html manifest.webmanifest sw.js _site/
+          cp -r icons models _site/
           touch _site/.nojekyll
 
       - name: Configure Pages

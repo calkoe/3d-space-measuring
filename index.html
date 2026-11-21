@@ -3,8 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#090d16">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ArUco 3D">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>ArUco 3D-Messwerkzeug</title>
 <style>
   :root {
@@ -22,17 +28,19 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; padding: 0; width: 100%; height: 100dvh;
+    margin: 0; padding: 0; width: 100%; height: 100%;
     background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
     overflow: hidden;
     overscroll-behavior: none;
+    position: fixed; inset: 0;
   }
 
   #stage {
     position: fixed; inset: 0;
     display: flex; align-items: center; justify-content: center;
     background: #000;
+    z-index: 0;
   }
   video { display: none; }
   #canvas {
@@ -41,21 +49,35 @@
     display: block;
   }
 
+  /* RESPONSIVE VIEWPORT SHELL (verhindert Abschneiden & Lücken in iOS Safari + PWA) */
+  #uiShell {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--app-h, 100dvh);
+    display: flex; flex-direction: column;
+    gap: 8px;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 6px)
+      calc(env(safe-area-inset-right, 0px) + 10px)
+      calc(env(safe-area-inset-bottom, 0px) + 8px)
+      calc(env(safe-area-inset-left, 0px) + 10px);
+    z-index: 20;
+    pointer-events: none;
+  }
+
   /* TOP HUD */
   #hud {
-    position: fixed;
-    top: max(8px, env(safe-area-inset-top));
-    left: 10px; right: 10px;
+    flex: none;
+    pointer-events: auto;
     background: var(--panel);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 9px 11px;
-    z-index: 20;
+    padding: 8px 10px;
   }
-  .hud-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-  .hud-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
-  .hud-actions { display: flex; align-items: center; gap: 6px; }
+  .hud-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+  .hud-title { font-size: clamp(12px, 3.4vw, 14px); font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud-actions { display: flex; align-items: center; gap: 5px; flex: none; }
   .badge {
     padding: 2px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
@@ -137,12 +159,23 @@
     background: var(--amber); transition: width 0.06s linear;
   }
 
+  /* MIDDLE AREA (automatisch exakt zwischen HUD & Bottom-Bar) */
+  #midArea {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
   /* CORNER WIDGETS */
   #widgets {
-    position: fixed;
-    right: 10px;
-    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 68px);
-    display: flex; gap: 7px;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: flex; gap: 6px;
     z-index: 15; pointer-events: none;
     transition: opacity 0.18s ease;
   }
@@ -151,7 +184,7 @@
     background: var(--panel);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border);
-    border-radius: 14px; padding: 5px;
+    border-radius: 14px; padding: 4px;
     display: flex; flex-direction: column; align-items: center;
   }
   .widget-title {
@@ -159,28 +192,27 @@
     text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1px;
   }
 
-  /* BOTTOM ACTION BAR (5 klare Buttons) */
+  /* BOTTOM ACTION BAR (5 klare Buttons, responsive ab 320 px) */
   #bottomBar {
-    position: fixed;
-    bottom: max(8px, env(safe-area-inset-bottom));
-    left: 10px; right: 10px;
+    flex: none;
+    pointer-events: auto;
     background: var(--panel);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 7px 7px;
-    z-index: 20;
+    padding: 6px;
     display: grid;
-    grid-template-columns: 1.05fr 1.15fr 0.85fr 0.62fr 0.95fr;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr) minmax(0, 0.8fr) minmax(0, 0.58fr) minmax(0, 0.95fr);
     gap: 5px;
   }
   button.act {
-    height: 44px; padding: 0 5px; border-radius: 11px;
+    min-width: 0;
+    height: 44px; padding: 0 4px; border-radius: 11px;
     border: 1px solid var(--border);
     background: rgba(255,255,255,0.09);
-    color: var(--text); font-size: 12.5px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center; gap: 4px;
-    cursor: pointer; white-space: nowrap;
+    color: var(--text); font-size: clamp(11px, 3vw, 13px); font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 3px;
+    cursor: pointer; white-space: nowrap; overflow: hidden;
   }
   button.act:disabled { opacity: 0.38; cursor: default; }
   button.act.primary { background: var(--blue); border-color: #3b82f6; }
@@ -259,17 +291,17 @@
   }
   #toast.show { opacity: 1; }
 
-  /* START-SCHEMATIK OVERLAY */
+  /* START-SCHEMATIK OVERLAY (exakt im #midArea eingepasst) */
   #guideOverlay {
-    position: fixed;
-    left: 10px; right: 10px;
-    top: calc(max(8px, env(safe-area-inset-top)) + 146px);
-    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 70px);
+    position: relative;
+    width: 100%;
+    max-height: 100%;
     z-index: 18;
     display: flex; align-items: center; justify-content: center;
+    pointer-events: auto;
     transition: opacity 0.2s ease;
   }
-  #guideOverlay.hidden { opacity: 0; pointer-events: none; }
+  #guideOverlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
   .guide-card {
     width: min(410px, 100%);
     max-height: 100%;
@@ -279,7 +311,7 @@
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
     border: 1px solid rgba(255,255,255,0.16);
     border-radius: 18px;
-    padding: 11px 13px 12px;
+    padding: 10px 12px 11px;
     box-shadow: 0 18px 44px rgba(0,0,0,0.5);
   }
   .guide-head {
@@ -323,13 +355,17 @@
 
   /* FULLSCREEN 3D SCENE VIEWER */
   #view3dOverlay {
-    position: fixed; inset: 0;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--app-h, 100dvh);
     background: #070b14;
     z-index: 45;
     display: none;
     flex-direction: column;
-    padding-top: max(8px, env(safe-area-inset-top));
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-top: calc(env(safe-area-inset-top, 0px) + 6px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   #view3dOverlay.open { display: flex; }
   .v3d-head {
@@ -396,12 +432,23 @@
   }
   .v3d-actions button.primary { background: rgba(56,189,248,0.22); border-color: rgba(56,189,248,0.6); color: #e0f2fe; }
 
-  @media (orientation: landscape) and (max-height: 500px) {
-    #hud { width: 320px; right: auto; }
+  @media (orientation: landscape) and (max-height: 520px) {
+    #uiShell {
+      display: grid;
+      grid-template-columns: minmax(290px, 345px) 1fr;
+      grid-template-rows: auto 1fr auto;
+      gap: 8px;
+    }
+    #hud { grid-column: 1; grid-row: 1; }
+    #bottomBar { grid-column: 1; grid-row: 3; }
+    #midArea { grid-column: 2; grid-row: 1 / span 3; }
+    .val { font-size: 19px; }
+  }
+  @media (max-height: 680px) {
     .val { font-size: 20px; }
-    #bottomBar { left: 10px; width: 390px; right: auto; }
-    #widgets { bottom: max(8px, env(safe-area-inset-bottom)); }
-    #guideOverlay { left: 340px; top: 8px; bottom: 8px; }
+    #hud { padding: 6px 9px; }
+    .angles { margin-top: 5px; }
+    #guideCanvas { max-height: 175px; object-fit: contain; }
   }
 </style>
 </head>
@@ -412,64 +459,90 @@
   <canvas id="canvas"></canvas>
 </div>
 
-<!-- TOP HUD -->
-<div id="hud">
-  <div class="hud-top">
-    <span class="hud-title">ArUco 3D-Messwerkzeug</span>
-    <div class="hud-actions">
-      <span id="status" class="badge warn">Lade OpenCV…</span>
-      <button id="btnGuide" class="icon-btn active" title="Würfel-Ausrichtung anzeigen">?</button>
-      <button id="btnToggleWidgets" class="icon-btn active" title="Widgets ein/aus">◎</button>
-      <button id="btnSettings" class="icon-btn" title="Einstellungen & 3D-Dateien">⚙</button>
-    </div>
-  </div>
-
-  <div id="targetChips"></div>
-
-  <div class="angles">
-    <div class="card">
-      <div class="label">Azimut (Orbit Z)</div>
-      <div id="vAzim" class="val muted">—°</div>
-    </div>
-    <div class="card">
-      <div class="label">Elevation (Höhe)</div>
-      <div id="vElev" class="val sky muted">—°</div>
-    </div>
-  </div>
-
-  <div class="meta"><span id="vMeta">1× Kamera auf Messwürfel 1, 2 oder 3 halten</span></div>
-  <div id="relBanner" title="Tippen für alle Details"></div>
-</div>
-
-<!-- START-SCHEMATIK (ANIMIERTER 3D-WÜRFEL) -->
-<div id="guideOverlay">
-  <div class="guide-card">
-    <div class="guide-head">
-      <h3>Würfel-Ausrichtung <span class="guide-pill">Z-up · CAD-Standard</span></h3>
-      <button id="btnCloseGuide" class="icon-btn" title="Ausblenden">✕</button>
-    </div>
-    <canvas id="guideCanvas" width="460" height="270"></canvas>
-    <div class="guide-legend">
-      <div class="guide-row" style="border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.09);">
-        <span class="gdot" style="background:#f59e0b;"></span>
-        <div><strong style="color:#fcd34d;">3 mm Fase → Unten Rechts (+X)</strong><br>Boden mit Bohrung (<span class="mono">Z = 0</span>) liegt auf der Messfläche.</div>
+<div id="uiShell">
+  <!-- TOP HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <span class="hud-title">ArUco 3D-Messwerkzeug</span>
+      <div class="hud-actions">
+        <span id="status" class="badge warn">Lade OpenCV…</span>
+        <button id="btnGuide" class="icon-btn active" title="Würfel-Ausrichtung anzeigen">?</button>
+        <button id="btnToggleWidgets" class="icon-btn active" title="Widgets ein/aus">◎</button>
+        <button id="btnSettings" class="icon-btn" title="Einstellungen & 3D-Dateien">⚙</button>
       </div>
-      <div class="guide-row">
-        <span class="gdot" style="background:#38bdf8;"></span>
-        <div>
-          <strong>Koordinatensystem (Rechtssystem):</strong>
-          <div class="guide-axes">
-            <span class="ax-tag" style="color:#fca5a5;">+X Rechts (Fase, +90°)</span>
-            <span class="ax-tag" style="color:#86efac;">-Y Vorne (0°)</span>
-            <span class="ax-tag" style="color:#93c5fd;">+Z Oben (+90° Elev.)</span>
+    </div>
+
+    <div id="targetChips"></div>
+
+    <div class="angles">
+      <div class="card">
+        <div class="label">Azimut (Orbit Z)</div>
+        <div id="vAzim" class="val muted">—°</div>
+      </div>
+      <div class="card">
+        <div class="label">Elevation (Höhe)</div>
+        <div id="vElev" class="val sky muted">—°</div>
+      </div>
+    </div>
+
+    <div class="meta"><span id="vMeta">1× Kamera auf Messwürfel 1, 2 oder 3 halten</span></div>
+    <div id="relBanner" title="Tippen für alle Details"></div>
+  </div>
+
+  <!-- FLEXIBLE MITTE (Start-Schematik & Corner-Widgets) -->
+  <div id="midArea">
+    <!-- START-SCHEMATIK (ANIMIERTER 3D-WÜRFEL) -->
+    <div id="guideOverlay">
+      <div class="guide-card">
+        <div class="guide-head">
+          <h3>Würfel-Ausrichtung <span class="guide-pill">Z-up · CAD-Standard</span></h3>
+          <button id="btnCloseGuide" class="icon-btn" title="Ausblenden">✕</button>
+        </div>
+        <canvas id="guideCanvas" width="460" height="270"></canvas>
+        <div class="guide-legend">
+          <div class="guide-row" style="border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.09);">
+            <span class="gdot" style="background:#f59e0b;"></span>
+            <div><strong style="color:#fcd34d;">3 mm Fase → Unten Rechts (+X)</strong><br>Boden mit Bohrung (<span class="mono">Z = 0</span>) liegt auf der Messfläche.</div>
+          </div>
+          <div class="guide-row">
+            <span class="gdot" style="background:#38bdf8;"></span>
+            <div>
+              <strong>Koordinatensystem (Rechtssystem):</strong>
+              <div class="guide-axes">
+                <span class="ax-tag" style="color:#fca5a5;">+X Rechts (Fase, +90°)</span>
+                <span class="ax-tag" style="color:#86efac;">-Y Vorne (0°)</span>
+                <span class="ax-tag" style="color:#93c5fd;">+Z Oben (+90° Elev.)</span>
+              </div>
+            </div>
+          </div>
+          <div class="guide-row">
+            <span class="gdot" style="background:#22c55e;"></span>
+            <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen, dann <strong>▶ Start</strong> tippen.</div>
           </div>
         </div>
       </div>
-      <div class="guide-row">
-        <span class="gdot" style="background:#22c55e;"></span>
-        <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen, dann <strong>▶ Kamera</strong> starten.</div>
+    </div>
+
+    <!-- CORNER WIDGETS -->
+    <div id="widgets">
+      <div class="widget-box">
+        <div class="widget-title">Orbit & Höhe</div>
+        <canvas id="sphereCanvas" width="128" height="128" style="width:98px;height:98px;"></canvas>
+      </div>
+      <div class="widget-box">
+        <div class="widget-title">Würfel X/Y/Z</div>
+        <canvas id="gizmoCanvas" width="96" height="96" style="width:76px;height:76px;"></canvas>
       </div>
     </div>
+  </div>
+
+  <!-- BOTTOM ACTION BAR -->
+  <div id="bottomBar">
+    <button id="btnStart" class="act primary" disabled>▶ Start</button>
+    <button id="btnCapture" class="act" disabled>⏺ Capture</button>
+    <button id="btnView3D" class="act view3d" disabled>🧊 3D</button>
+    <button id="btnDetails" class="act" title="Details">☰</button>
+    <button id="btnExport" class="act export" disabled>⬇ Export</button>
   </div>
 </div>
 
@@ -478,27 +551,6 @@
   <div id="capTitle">Ruhig halten…</div>
   <div id="capSub">Startet in 1.0 s</div>
   <div class="prog-track"><div id="capBar"></div></div>
-</div>
-
-<!-- CORNER WIDGETS -->
-<div id="widgets">
-  <div class="widget-box">
-    <div class="widget-title">Orbit & Höhe</div>
-    <canvas id="sphereCanvas" width="128" height="128" style="width:108px;height:108px;"></canvas>
-  </div>
-  <div class="widget-box">
-    <div class="widget-title">Würfel X/Y/Z</div>
-    <canvas id="gizmoCanvas" width="96" height="96" style="width:82px;height:82px;"></canvas>
-  </div>
-</div>
-
-<!-- BOTTOM ACTION BAR -->
-<div id="bottomBar">
-  <button id="btnStart" class="act primary" disabled>▶ Kamera</button>
-  <button id="btnCapture" class="act" disabled>⏺ Capture</button>
-  <button id="btnView3D" class="act view3d" disabled>🧊 3D</button>
-  <button id="btnDetails" class="act" title="Details">☰</button>
-  <button id="btnExport" class="act export" disabled>⬇ Export</button>
 </div>
 
 <div id="backdrop" class="drawer-backdrop"></div>
@@ -554,6 +606,11 @@
       <a href="models/messwuerfel-3.step" download>STEP</a>
       <a href="models/messwuerfel-3.sc" download>SC</a>
     </div>
+  </div>
+
+  <div class="sec-title">Offline-App (PWA · Zum Home-Bildschirm)</div>
+  <div id="offlineStatus" class="detail-card" style="margin-bottom:0;color:var(--muted);">
+    Prüfe Offline-Cache…
   </div>
 
   <div class="drawer-btns">
@@ -1803,7 +1860,7 @@ btnStart.addEventListener("click", async () => {
     resetCaptureUI();
     if (streamRef) streamRef.getTracks().forEach(t => t.stop());
     streamRef = null;
-    btnStart.textContent = "▶ Kamera";
+    btnStart.textContent = "▶ Start";
     btnStart.classList.remove("active");
     btnStart.classList.add("primary");
     btnCapture.disabled = true;
@@ -2715,6 +2772,40 @@ view3dCanvas.addEventListener("wheel", e => {
   v3dZoom = clamp(v3dZoom * (e.deltaY > 0 ? 0.9 : 1.11), 0.35, 3.8);
   renderView3D();
 }, { passive: false });
+
+// --------- Exakte iOS-Viewport-Höhe (verhindert Abschneiden unter Safari-Leiste) ---------
+function syncAppHeight() {
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  if (h > 100) document.documentElement.style.setProperty("--app-h", `${Math.round(h)}px`);
+  if (v3dOpen) renderView3D();
+}
+syncAppHeight();
+window.addEventListener("resize", syncAppHeight);
+window.addEventListener("orientationchange", () => setTimeout(syncAppHeight, 120));
+if (window.visualViewport) window.visualViewport.addEventListener("resize", syncAppHeight);
+
+// --------- PWA Service Worker (100 % Offline inkl. OpenCV.js über GitHub Pages) ---------
+const offlineStatusEl = document.getElementById("offlineStatus");
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").then(reg => {
+    const updateMsg = () => {
+      const ready = Boolean(navigator.serviceWorker.controller || reg.active);
+      offlineStatusEl.innerHTML = ready
+        ? `<strong style="color:#86efac;">Offline-Modus aktiv ✓</strong><br>App &amp; OpenCV.js liegen lokal im Cache. Über <em>Teilen → Zum Home-Bildschirm</em> als eigenständige Offline-App installierbar.`
+        : `<strong style="color:#fde68a;">Offline-Cache wird geladen…</strong><br>Einmalig kurz warten, danach funktioniert die App komplett ohne Internet (auch im Flugmodus).`;
+    };
+    updateMsg();
+    reg.addEventListener("updatefound", () => {
+      const nw = reg.installing;
+      if (nw) nw.addEventListener("statechange", updateMsg);
+    });
+    navigator.serviceWorker.ready.then(updateMsg);
+  }).catch(() => {
+    offlineStatusEl.innerHTML = `<strong style="color:#fcd34d;">Lokaler Modus (ohne Service Worker)</strong><br>iOS erlaubt Offline-Caching nur über vertrauenswürdiges HTTPS (z. B. <strong>GitHub Pages</strong>). Über GitHub Pages ist die App nach dem ersten Öffnen 100 % offline nutzbar.`;
+  });
+} else {
+  offlineStatusEl.textContent = "Dieser Browser unterstützt keinen Offline-Service-Worker.";
+}
 
 window.Module = {
   onRuntimeInitialized() {
