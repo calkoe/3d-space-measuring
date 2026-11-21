@@ -1,5 +1,5 @@
-const APP_CACHE = "aruco-3d-app-__BUILD_SHA__";
-const OPENCV_CACHE = "aruco-3d-opencv-4.10.0";
+const APP_CACHE = "3d-space-measuring-app-__BUILD_SHA__";
+const OPENCV_CACHE = "3d-space-measuring-opencv-4.10.0";
 const OPENCV_URL = "https://docs.opencv.org/4.10.0/opencv.js";
 
 const APP_SHELL = [

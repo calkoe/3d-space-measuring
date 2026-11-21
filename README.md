@@ -1,6 +1,6 @@
-# ArUco 3D-Messwerkzeug
+# 3D Space Measuring
 
-Ein kompaktes Open-Source-3D-Messwerkzeug aus **3D-gedruckten 2-Farb-ArUco-Messwürfeln (`DICT_4X4_50`)** und einer mobilen **Browser-Web-App (`OpenCV.js` / WASM)**.
+Ein kompaktes Open-Source-3D-Messwerkzeug aus **3D-gedruckten 2-Farb-Messwürfeln (`DICT_4X4_50`)** und einer mobilen **Browser-Web-App (`OpenCV.js` / WASM)**.
 
 Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS Safari / Android Chrome) — ohne Backend, ohne Cloud und ohne App-Installation.
 
@@ -47,7 +47,7 @@ Das Skript erzeugt einmalig ein selbstsigniertes Zertifikat in `/tmp` und gibt d
 
 Alle 3 Messwürfel liegen im Ordner [`models/`](models/) (und sind auch direkt in der Web-App unter **⚙** herunterladbar):
 
-| Modell | ArUco-IDs (`DICT_4X4_50`) | Dateien |
+| Modell | Marker-IDs (`DICT_4X4_50`) | Dateien |
 | :--- | :---: | :--- |
 | **Alle 3 Würfel (1 Druckplatte)** | `0–14` | [`models/messwuerfel-alle-3.3mf`](models/messwuerfel-alle-3.3mf) *(AMS-ready, 2 Materialien)* |
 | **Marker 1** (Grün) | `0–4` | [`messwuerfel-1.3mf`](models/messwuerfel-1.3mf) · [`messwuerfel-1.step`](models/messwuerfel-1.step) · [`messwuerfel-1.sc`](models/messwuerfel-1.sc) |
@@ -56,7 +56,7 @@ Alle 3 Messwürfel liegen im Ordner [`models/`](models/) (und sind auch direkt i
 
 ### Geometrie (Standard 48 mm)
 - **Grundkörper:** `48 × 48 × 48 mm`
-- **ArUco-Marker (5 Seiten):** `36 × 36 mm` (`75 %` der Kantenlänge, `6 mm` Zellen, `6 mm` weiße Quiet Zone), `0,8 mm` tief flächenbündig eingelassen
+- **Optische Marker (5 Seiten):** `36 × 36 mm` (`75 %` der Kantenlänge, `6 mm` Zellen, `6 mm` weiße Quiet Zone), `0,8 mm` tief flächenbündig eingelassen
 - **Orientierungsfase:** `3 mm` Fase an der unteren `+X`-Kante (`unten rechts`)
 - **Boden-Bohrung:** `Ø 5,7 × 10 mm` mittig bei `(0, 0, 0)` (z. B. für M4-Einschmelzgewinde / Stativ-Adapter)
 
@@ -137,4 +137,4 @@ Mit der **Bohrung nach unten (`Z = 0`)** und der **3 mm Fase unten rechts**:
 
 Veröffentlicht unter der [MIT-Lizenz](LICENSE).
 
-- Nutzt [OpenCV.js](https://docs.opencv.org/) (Apache-2.0-Lizenz) und das ArUco-Dictionary `DICT_4X4_50`.
+- Nutzt [OpenCV.js](https://docs.opencv.org/) (Apache-2.0-Lizenz) und optische `DICT_4X4_50`-Marker.

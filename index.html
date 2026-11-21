@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#090d16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ArUco 3D">
+<meta name="apple-mobile-web-app-title" content="3D Space Measuring">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<title>ArUco 3D-Messwerkzeug</title>
+<title>3D Space Measuring</title>
 <style>
   :root {
     --bg: #090d16;
@@ -505,7 +505,7 @@
   <!-- TOP HUD -->
   <div id="hud">
     <div class="hud-top">
-      <span class="hud-title">ArUco 3D-Messwerkzeug</span>
+      <span class="hud-title">3D Space Measuring</span>
       <div class="hud-actions">
         <span id="status" class="badge warn">Lade OpenCV…</span>
         <button id="btnStopCam" class="icon-btn" title="Kamera stoppen" style="display:none;color:#fca5a5;">■</button>
@@ -1819,7 +1819,7 @@ function buildTextReport(s) {
   const ts = s.timestamp.toISOString().replace("T", " ").slice(0, 19);
   const lines = [];
   lines.push("====================================================================");
-  lines.push(" ARUCO 3D-MESSBERICHT (KUGELKOORDINATEN & MULTI-MARKER)");
+  lines.push(" 3D SPACE MEASURING — MESSBERICHT (KUGELKOORDINATEN & MULTI-MARKER)");
   lines.push("====================================================================");
   lines.push(`Zeitstempel:      ${ts}`);
   lines.push(`Messmodus:        ${s.isCapture ? `3s-Capture Durchschnitt (${s.totalFrames} gültige Frames)` : "Live-Einzelbild"}`);

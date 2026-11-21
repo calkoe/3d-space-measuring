@@ -3,7 +3,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${1:-8443}"
-CERT_DIR="/tmp/aruco-3d-measure-ssl"
+CERT_DIR="/tmp/3d-space-measuring-ssl"
 mkdir -p "$CERT_DIR"
 
 # Lokale LAN-IP ermitteln (macOS + Linux)
@@ -22,7 +22,7 @@ if [[ ! -f "$CERT_DIR/cert.pem" || ! -f "$CERT_DIR/key.pem" ]]; then
 fi
 
 echo "============================================================"
-echo " ArUco 3D-Messwerkzeug (lokaler HTTPS-Server)"
+echo " 3D Space Measuring (lokaler HTTPS-Server)"
 echo " Öffne im Smartphone-Browser (im selben WLAN):"
 echo ""
 echo "   https://${IP}:${PORT}/"
