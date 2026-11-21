@@ -1,0 +1,16 @@
+# macOS / OS
+.DS_Store
+._*
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Local build / temp artifacts
+_site/
+*.pem
+*.key
+*.crt
+*.log

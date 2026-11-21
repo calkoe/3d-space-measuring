@@ -1,0 +1,102 @@
+name: Validate & Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Web App & 3D Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check inline JavaScript syntax in index.html
+        run: |
+          python3 - <<'PY'
+          import re, subprocess, tempfile
+
+          html = open("index.html", encoding="utf-8").read()
+          match = re.search(r"<script>\n(.*?)\n</script>", html, re.S)
+          assert match, "Inline <script> block not found in index.html"
+
+          with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+              f.write(match.group(1))
+              js_path = f.name
+
+          res = subprocess.run(["node", "--check", js_path], capture_output=True, text=True)
+          if res.returncode != 0:
+              print(res.stderr)
+              raise SystemExit(res.returncode)
+          print("JS syntax check: OK")
+          PY
+
+      - name: Verify model download links & 3MF integrity
+        run: |
+          python3 - <<'PY'
+          import os, re, zipfile, xml.etree.ElementTree as ET
+
+          html = open("index.html", encoding="utf-8").read()
+          links = re.findall(r'href="(models/[^"]+)"', html)
+          assert links, "No model download links found in index.html"
+          for rel in links:
+              assert os.path.isfile(rel), f"Missing linked file: {rel}"
+          print(f"Verified {len(links)} model links: OK")
+
+          ns = {"m": "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}
+          for fn in sorted(os.listdir("models")):
+              if not fn.endswith(".3mf"):
+                  continue
+              path = os.path.join("models", fn)
+              with zipfile.ZipFile(path) as z:
+                  root = ET.fromstring(z.read("3D/3dmodel.model"))
+              mats = root.findall(".//m:basematerials/m:base", ns)
+              items = root.findall(".//m:build/m:item", ns)
+              assert len(mats) == 2, f"{fn}: expected 2 AMS materials, got {len(mats)}"
+              assert len(items) >= 1, f"{fn}: empty <build>"
+              print(f"3MF {fn}: {len(mats)} materials, {len(items)} build item(s) - OK")
+          PY
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stage static site (_site)
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+          cp -r models _site/models
+          touch _site/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

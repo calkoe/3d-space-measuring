@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ArUco 3D-Messwerkzeug</title>
+<style>
+  :root {
+    --bg: #090d16;
+    --panel: rgba(15, 23, 42, 0.85);
+    --panel-solid: #0f172a;
+    --border: rgba(255, 255, 255, 0.13);
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --green: #22c55e;
+    --sky: #38bdf8;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --blue: #2563eb;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100dvh;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+  }
+  video { display: none; }
+  #canvas {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  /* TOP HUD */
+  #hud {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    left: 10px; right: 10px;
+    background: var(--panel);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 9px 11px;
+    z-index: 20;
+  }
+  .hud-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .hud-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+  .hud-actions { display: flex; align-items: center; gap: 6px; }
+  .badge {
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.09); color: var(--text);
+    white-space: nowrap;
+  }
+  .badge.ok { background: rgba(34,197,94,0.2); color: #86efac; }
+  .badge.warn { background: rgba(245,158,11,0.2); color: #fcd34d; }
+  .badge.multi { background: rgba(56,189,248,0.22); color: #7dd3fc; }
+  .badge.rec { background: rgba(239,68,68,0.28); color: #fca5a5; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 9px;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.08);
+    color: var(--text); font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; flex: none;
+  }
+  .icon-btn.active { background: rgba(37,99,235,0.45); border-color: #60a5fa; }
+
+  #targetChips {
+    display: none; gap: 6px; margin-top: 7px;
+    overflow-x: auto; padding-bottom: 2px;
+  }
+  #targetChips.visible { display: flex; }
+  .chip {
+    flex: none; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.07); color: var(--muted);
+    border: 1px solid var(--border); cursor: pointer;
+  }
+  .chip.selected {
+    background: rgba(56,189,248,0.22); color: #e0f2fe; border-color: rgba(56,189,248,0.65);
+  }
+
+  .angles { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 7px; }
+  .card { background: rgba(255,255,255,0.06); border-radius: 11px; padding: 6px 10px; }
+  .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .val {
+    font-size: 24px; font-weight: 700; line-height: 1.15;
+    font-variant-numeric: tabular-nums; color: var(--green);
+  }
+  .val.sky { color: var(--sky); }
+  .val.muted { color: var(--muted); }
+  .sigma { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+
+  .meta { margin-top: 6px; font-size: 11px; color: var(--muted); }
+  #relBanner {
+    display: none; margin-top: 6px; padding: 5px 8px;
+    border-radius: 8px; background: rgba(56,189,248,0.13);
+    border: 1px solid rgba(56,189,248,0.3);
+    font-size: 11px; color: #bae6fd; cursor: pointer;
+  }
+  #relBanner.visible { display: block; }
+
+  /* CAPTURE OVERLAY BANNER (Mitte) */
+  #captureOverlay {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(290px, calc(100% - 40px));
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 18px;
+    padding: 16px 18px;
+    text-align: center;
+    z-index: 25;
+    display: none;
+    pointer-events: none;
+  }
+  #captureOverlay.visible { display: block; }
+  #capTitle { font-size: 16px; font-weight: 700; }
+  #capSub { font-size: 12px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .prog-track {
+    margin-top: 10px; height: 8px; border-radius: 999px;
+    background: rgba(255,255,255,0.12); overflow: hidden;
+  }
+  #capBar {
+    height: 100%; width: 0%; border-radius: 999px;
+    background: var(--amber); transition: width 0.06s linear;
+  }
+
+  /* CORNER WIDGETS */
+  #widgets {
+    position: fixed;
+    right: 10px;
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 68px);
+    display: flex; gap: 7px;
+    z-index: 15; pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  #widgets.hidden { opacity: 0; }
+  .widget-box {
+    background: var(--panel);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 5px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .widget-title {
+    font-size: 9px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1px;
+  }
+
+  /* BOTTOM ACTION BAR (4 klare Buttons) */
+  #bottomBar {
+    position: fixed;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 10px; right: 10px;
+    background: var(--panel);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 7px 8px;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: 1.1fr 1.25fr 1fr 1fr;
+    gap: 7px;
+  }
+  button.act {
+    height: 44px; padding: 0 8px; border-radius: 11px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.09);
+    color: var(--text); font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    cursor: pointer; white-space: nowrap;
+  }
+  button.act:disabled { opacity: 0.38; cursor: default; }
+  button.act.primary { background: var(--blue); border-color: #3b82f6; }
+  button.act.active { background: #16a34a; border-color: var(--green); }
+  button.act.recording { background: #dc2626; border-color: #ef4444; }
+  button.act.export { background: rgba(56,189,248,0.22); border-color: rgba(56,189,248,0.6); color: #e0f2fe; }
+
+  /* SLIDE-UP DRAWERS */
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.48);
+    z-index: 30; display: none;
+  }
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    max-height: 80dvh;
+    background: var(--panel-solid);
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 14px 16px calc(max(16px, env(safe-area-inset-bottom)) + 6px);
+    z-index: 35;
+    transform: translateY(105%);
+    transition: transform 0.22s ease;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .drawer.open { transform: translateY(0); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .drawer-head h2 { margin: 0; font-size: 16px; }
+  .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .field input[type="number"] {
+    height: 38px; padding: 0 10px; border-radius: 10px;
+    background: rgba(255,255,255,0.08); color: var(--text);
+    border: 1px solid var(--border); font-size: 14px;
+  }
+  .sec-title {
+    font-size: 11px; color: var(--sky); text-transform: uppercase;
+    letter-spacing: 0.06em; margin: 14px 0 7px; font-weight: 700;
+  }
+  .dl-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 11px; padding: 8px 10px; margin-bottom: 7px; font-size: 12px;
+  }
+  .dl-links { display: flex; gap: 6px; }
+  .dl-links a {
+    padding: 5px 9px; border-radius: 8px; text-decoration: none;
+    background: rgba(56,189,248,0.16); border: 1px solid rgba(56,189,248,0.4);
+    color: #bae6fd; font-size: 11px; font-weight: 600;
+  }
+  .drawer-btns { display: flex; gap: 8px; margin-top: 14px; }
+  .drawer-btns button {
+    flex: 1; height: 42px; border-radius: 10px;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.09);
+    color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .drawer-btns button.primary { background: var(--blue); border-color: #3b82f6; }
+
+  .detail-card {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
+    font-size: 12px; line-height: 1.5;
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: #cbd5e1; }
+
+  #toast {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid rgba(56,189,248,0.55);
+    color: #e0f2fe; padding: 10px 16px; border-radius: 12px;
+    font-size: 13px; font-weight: 600; z-index: 50;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  #toast.show { opacity: 1; }
+
+  /* START-SCHEMATIK OVERLAY */
+  #guideOverlay {
+    position: fixed;
+    left: 10px; right: 10px;
+    top: calc(max(8px, env(safe-area-inset-top)) + 146px);
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 70px);
+    z-index: 18;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s ease;
+  }
+  #guideOverlay.hidden { opacity: 0; pointer-events: none; }
+  .guide-card {
+    width: min(410px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 18px;
+    padding: 11px 13px 12px;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.5);
+  }
+  .guide-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .guide-head h3 {
+    margin: 0; font-size: 13px; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .guide-pill {
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+    background: rgba(245,158,11,0.18); color: #fcd34d;
+    border: 1px solid rgba(245,158,11,0.4);
+  }
+  #guideCanvas {
+    width: 100%; height: auto; display: block;
+    border-radius: 12px;
+    background: radial-gradient(circle at 50% 48%, rgba(30,41,59,0.75), rgba(9,13,22,0.92));
+    border: 1px solid rgba(255,255,255,0.08);
+    touch-action: none;
+  }
+  .guide-legend {
+    margin-top: 8px;
+    display: grid; grid-template-columns: 1fr; gap: 5px;
+    font-size: 11.5px; line-height: 1.38; color: #cbd5e1;
+  }
+  .guide-row {
+    display: flex; align-items: flex-start; gap: 7px;
+    background: rgba(255,255,255,0.045);
+    border-radius: 9px; padding: 6px 8px;
+  }
+  .gdot {
+    width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 3px;
+  }
+  .guide-axes {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+    font-size: 11px; font-weight: 600;
+  }
+  .ax-tag { padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,0.06); }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    #hud { width: 320px; right: auto; }
+    .val { font-size: 20px; }
+    #bottomBar { left: 10px; width: 360px; right: auto; }
+    #widgets { bottom: max(8px, env(safe-area-inset-bottom)); }
+    #guideOverlay { left: 340px; top: 8px; bottom: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+</div>
+
+<!-- TOP HUD -->
+<div id="hud">
+  <div class="hud-top">
+    <span class="hud-title">ArUco 3D-Messwerkzeug</span>
+    <div class="hud-actions">
+      <span id="status" class="badge warn">Lade OpenCV…</span>
+      <button id="btnGuide" class="icon-btn active" title="Würfel-Ausrichtung anzeigen">?</button>
+      <button id="btnToggleWidgets" class="icon-btn active" title="Widgets ein/aus">◎</button>
+      <button id="btnSettings" class="icon-btn" title="Einstellungen & 3D-Dateien">⚙</button>
+    </div>
+  </div>
+
+  <div id="targetChips"></div>
+
+  <div class="angles">
+    <div class="card">
+      <div class="label">Azimut (Orbit Z)</div>
+      <div id="vAzim" class="val muted">—°</div>
+    </div>
+    <div class="card">
+      <div class="label">Elevation (Höhe)</div>
+      <div id="vElev" class="val sky muted">—°</div>
+    </div>
+  </div>
+
+  <div class="meta"><span id="vMeta">1× Kamera auf Messwürfel 1, 2 oder 3 halten</span></div>
+  <div id="relBanner" title="Tippen für alle Details"></div>
+</div>
+
+<!-- START-SCHEMATIK (ANIMIERTER 3D-WÜRFEL) -->
+<div id="guideOverlay">
+  <div class="guide-card">
+    <div class="guide-head">
+      <h3>Würfel-Ausrichtung <span class="guide-pill">Z-up · CAD-Standard</span></h3>
+      <button id="btnCloseGuide" class="icon-btn" title="Ausblenden">✕</button>
+    </div>
+    <canvas id="guideCanvas" width="460" height="270"></canvas>
+    <div class="guide-legend">
+      <div class="guide-row" style="border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.09);">
+        <span class="gdot" style="background:#f59e0b;"></span>
+        <div><strong style="color:#fcd34d;">3 mm Fase → Unten Rechts (+X)</strong><br>Boden mit Bohrung (<span class="mono">Z = 0</span>) liegt auf der Messfläche.</div>
+      </div>
+      <div class="guide-row">
+        <span class="gdot" style="background:#38bdf8;"></span>
+        <div>
+          <strong>Koordinatensystem (Rechtssystem):</strong>
+          <div class="guide-axes">
+            <span class="ax-tag" style="color:#fca5a5;">+X Rechts (Fase, +90°)</span>
+            <span class="ax-tag" style="color:#86efac;">-Y Vorne (0°)</span>
+            <span class="ax-tag" style="color:#93c5fd;">+Z Oben (+90° Elev.)</span>
+          </div>
+        </div>
+      </div>
+      <div class="guide-row">
+        <span class="gdot" style="background:#22c55e;"></span>
+        <div><strong>Kugelkoordinaten:</strong> <span style="color:#86efac;">Azimut</span> = Orbit um Z · <span style="color:#7dd3fc;">Elevation</span> = Höhenwinkel. Ziehen zum Drehen, dann <strong>▶ Kamera</strong> starten.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CAPTURE OVERLAY -->
+<div id="captureOverlay">
+  <div id="capTitle">Ruhig halten…</div>
+  <div id="capSub">Startet in 1.0 s</div>
+  <div class="prog-track"><div id="capBar"></div></div>
+</div>
+
+<!-- CORNER WIDGETS -->
+<div id="widgets">
+  <div class="widget-box">
+    <div class="widget-title">Orbit & Höhe</div>
+    <canvas id="sphereCanvas" width="128" height="128" style="width:108px;height:108px;"></canvas>
+  </div>
+  <div class="widget-box">
+    <div class="widget-title">Würfel X/Y/Z</div>
+    <canvas id="gizmoCanvas" width="96" height="96" style="width:82px;height:82px;"></canvas>
+  </div>
+</div>
+
+<!-- BOTTOM ACTION BAR -->
+<div id="bottomBar">
+  <button id="btnStart" class="act primary" disabled>▶ Kamera</button>
+  <button id="btnCapture" class="act" disabled>⏺ Capture</button>
+  <button id="btnDetails" class="act">☰ Details</button>
+  <button id="btnExport" class="act export" disabled>⬇ Export</button>
+</div>
+
+<div id="backdrop" class="drawer-backdrop"></div>
+
+<!-- SETTINGS & 3D DOWNLOADS DRAWER -->
+<div id="settingsDrawer" class="drawer">
+  <div class="drawer-head">
+    <h2>Einstellungen & 3D-Würfel</h2>
+    <button class="icon-btn" onclick="closeDrawers()">✕</button>
+  </div>
+  <div class="cfg-grid">
+    <label class="field">
+      Würfelgröße (mm)
+      <input id="cubeSize" type="number" value="48" step="1" min="15" max="300">
+    </label>
+    <label class="field">
+      Bezugshöhe Z (mm)
+      <input id="pivotZ" type="number" value="0" step="1" min="-100" max="200">
+    </label>
+    <label class="field" style="grid-column: span 2;">
+      Kamera-Brennweite 35mm-Äquiv. (iPhone 14–16: 24, ältere: 26)
+      <input id="focal35" type="number" value="24" step="1" min="14" max="120">
+    </label>
+  </div>
+
+  <div class="sec-title">3D-Messwürfel (48 mm · 2-Farb · Bambu-ready 3MF)</div>
+  <div class="dl-row" style="border-color:rgba(56,189,248,0.45);background:rgba(56,189,248,0.08);">
+    <div><strong>Alle 3 Würfel (1 Platte)</strong><br><span class="mono">Marker 1–3 · 2 Farben (AMS)</span></div>
+    <div class="dl-links">
+      <a href="models/messwuerfel-alle-3.3mf" download>3MF (Alle 3)</a>
+    </div>
+  </div>
+  <div class="dl-row">
+    <div><strong style="color:#22c55e;">Marker 1</strong><br><span class="mono">IDs 0–4</span></div>
+    <div class="dl-links">
+      <a href="models/messwuerfel-1.3mf" download>3MF</a>
+      <a href="models/messwuerfel-1.step" download>STEP</a>
+      <a href="models/messwuerfel-1.sc" download>SC</a>
+    </div>
+  </div>
+  <div class="dl-row">
+    <div><strong style="color:#38bdf8;">Marker 2</strong><br><span class="mono">IDs 5–9</span></div>
+    <div class="dl-links">
+      <a href="models/messwuerfel-2.3mf" download>3MF</a>
+      <a href="models/messwuerfel-2.step" download>STEP</a>
+      <a href="models/messwuerfel-2.sc" download>SC</a>
+    </div>
+  </div>
+  <div class="dl-row">
+    <div><strong style="color:#f59e0b;">Marker 3</strong><br><span class="mono">IDs 10–14</span></div>
+    <div class="dl-links">
+      <a href="models/messwuerfel-3.3mf" download>3MF</a>
+      <a href="models/messwuerfel-3.step" download>STEP</a>
+      <a href="models/messwuerfel-3.sc" download>SC</a>
+    </div>
+  </div>
+
+  <div class="drawer-btns">
+    <button class="primary" onclick="closeDrawers()">Fertig</button>
+  </div>
+</div>
+
+<!-- DETAILS DRAWER -->
+<div id="detailsDrawer" class="drawer">
+  <div class="drawer-head">
+    <h2>3D-Messwerte & Relationen</h2>
+    <button class="icon-btn" onclick="closeDrawers()">✕</button>
+  </div>
+  <div id="detailsBody">
+    <div class="detail-card" style="color:var(--muted);">Noch kein Messwürfel erkannt.</div>
+  </div>
+  <div class="drawer-btns">
+    <button onclick="copyReport()">📋 Text kopieren</button>
+    <button class="primary" onclick="downloadReport()">⬇ Bericht (.txt) laden</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// Fest definierte 3 Messwürfel (2-Farb flächenbündig, DICT_4X4_50 IDs 0..14; Marker = 75 % der Würfelgröße)
+const MARKER_RATIO = 0.75; // 36 mm / 48 mm (bleibt bei gleichmäßiger Skalierung im Slicer exakt erhalten)
+const CAPTURE_DELAY_MS = 1000;
+const CAPTURE_DURATION_MS = 3000;
+
+const CUBES = [
+  { key: "marker1", label: "Marker 1", idOffset: 0,  color: "#22c55e", file: "messwuerfel-1" },
+  { key: "marker2", label: "Marker 2", idOffset: 5,  color: "#38bdf8", file: "messwuerfel-2" },
+  { key: "marker3", label: "Marker 3", idOffset: 10, color: "#f59e0b", file: "messwuerfel-3" },
+];
+
+const FACE_LABELS = ["Oben (+Z)", "Vorne (-Y)", "Rechts (+X, Fase)", "Hinten (+Y)", "Links (-X)"];
+
+// Exakte OpenCV DICT_4X4_50 16-Bit-Innenmuster für IDs 0..14 (1 = Schwarz, 0 = Weiß, row-major)
+const DICT_4X4_15 = [
+  0x4acd, 0xf065, 0xccd2, 0x66b9, 0xab61, // Marker 1: IDs 0..4
+  0x8632, 0x61d1, 0x3b0d, 0x0125, 0x30a9, // Marker 2: IDs 5..9
+  0x066e, 0xee58, 0xf148, 0xd5f0, 0xdb4e, // Marker 3: IDs 10..14
+];
+
+function rotateMaskCW(mask) {
+  let out = 0;
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      if ((mask >> (15 - (r * 4 + c))) & 1) out |= (1 << (15 - (c * 4 + (3 - r))));
+    }
+  }
+  return out;
+}
+
+const MARKER_MAP = new Map();
+for (let id = 0; id < DICT_4X4_15.length; id++) {
+  let m = DICT_4X4_15[id];
+  for (let rot = 0; rot < 4; rot++) {
+    if (!MARKER_MAP.has(m)) MARKER_MAP.set(m, { id, rot });
+    m = rotateMaskCW(m);
+  }
+}
+
+function quad3D(c, u, v, s) {
+  return [
+    [c[0]-u[0]*s+v[0]*s, c[1]-u[1]*s+v[1]*s, c[2]-u[2]*s+v[2]*s],
+    [c[0]+u[0]*s+v[0]*s, c[1]+u[1]*s+v[1]*s, c[2]+u[2]*s+v[2]*s],
+    [c[0]+u[0]*s-v[0]*s, c[1]+u[1]*s-v[1]*s, c[2]+u[2]*s-v[2]*s],
+    [c[0]-u[0]*s-v[0]*s, c[1]-u[1]*s-v[1]*s, c[2]-u[2]*s-v[2]*s],
+  ];
+}
+
+function buildFaceSpecs3D(cubeSize) {
+  const s = (cubeSize * MARKER_RATIO) / 2.0, h = cubeSize / 2.0;
+  // u = Marker-Rechts, v = Marker-Oben, n = u x v (Außennormale)
+  const raw = [
+    { c: [0, 0, cubeSize], u: [1, 0, 0],  v: [0, 1, 0], n: [0, 0, 1] },  // +0: Oben (+Z)
+    { c: [0, -h, h],       u: [1, 0, 0],  v: [0, 0, 1], n: [0, -1, 0] }, // +1: Vorne (-Y)
+    { c: [h, 0, h],        u: [0, 1, 0],  v: [0, 0, 1], n: [1, 0, 0] },  // +2: Rechts (+X, Fase)
+    { c: [0, h, h],        u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0] },  // +3: Hinten (+Y)
+    { c: [-h, 0, h],       u: [0, -1, 0], v: [0, 0, 1], n: [-1, 0, 0] }, // +4: Links (-X)
+  ];
+  return raw.map(f => ({
+    ...f,
+    corners: quad3D(f.c, f.u, f.v, s),
+    // Rotation R_f2c (3x3 row-major): Spalten sind [u, v, n] (transformiert lokale Marker-Z=0-Koordinaten -> Würfel-Koordinaten)
+    Rf2c: [
+      f.u[0], f.v[0], f.n[0],
+      f.u[1], f.v[1], f.n[1],
+      f.u[2], f.v[2], f.n[2],
+    ],
+  }));
+}
+
+// --------- App-Zustand ---------
+let cvReady = false;
+let streaming = false;
+let streamRef = null;
+let lastDetectMs = 0;
+let lastSnapshot = null;
+let selectedObjKey = null;
+
+// Capture-Zustandsmaschine: "idle" | "countdown" | "recording" | "captured"
+let capturePhase = "idle";
+let captureStartMs = 0;
+let captureSamples = []; // Array von Snapshots aus dem 3s-Fenster
+
+const workCanvas = document.createElement("canvas");
+const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const sphereCtx = document.getElementById("sphereCanvas").getContext("2d");
+const gizmoCtx = document.getElementById("gizmoCanvas").getContext("2d");
+
+const statusEl = document.getElementById("status");
+const vAzim = document.getElementById("vAzim");
+const vElev = document.getElementById("vElev");
+const vMeta = document.getElementById("vMeta");
+const relBanner = document.getElementById("relBanner");
+const targetChips = document.getElementById("targetChips");
+const captureOverlay = document.getElementById("captureOverlay");
+const capTitle = document.getElementById("capTitle");
+const capSub = document.getElementById("capSub");
+const capBar = document.getElementById("capBar");
+
+const btnStart = document.getElementById("btnStart");
+const btnCapture = document.getElementById("btnCapture");
+const btnExport = document.getElementById("btnExport");
+const btnDetails = document.getElementById("btnDetails");
+const btnSettings = document.getElementById("btnSettings");
+const btnToggleWidgets = document.getElementById("btnToggleWidgets");
+const widgetsEl = document.getElementById("widgets");
+const backdrop = document.getElementById("backdrop");
+const settingsDrawer = document.getElementById("settingsDrawer");
+const detailsDrawer = document.getElementById("detailsDrawer");
+const detailsBody = document.getElementById("detailsBody");
+const toastEl = document.getElementById("toast");
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toastEl.classList.remove("show"), 2200);
+}
+function openDrawer(el) { closeDrawers(); backdrop.classList.add("open"); el.classList.add("open"); }
+function closeDrawers() {
+  backdrop.classList.remove("open");
+  settingsDrawer.classList.remove("open");
+  detailsDrawer.classList.remove("open");
+}
+backdrop.addEventListener("click", closeDrawers);
+btnSettings.addEventListener("click", () => openDrawer(settingsDrawer));
+btnDetails.addEventListener("click", () => { renderDetailsDrawer(); openDrawer(detailsDrawer); });
+relBanner.addEventListener("click", () => { renderDetailsDrawer(); openDrawer(detailsDrawer); });
+btnToggleWidgets.addEventListener("click", () => {
+  widgetsEl.classList.toggle("hidden");
+  btnToggleWidgets.classList.toggle("active", !widgetsEl.classList.contains("hidden"));
+});
+
+// --------- Mathe & Statistik ---------
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const rad2deg = r => r * 180 / Math.PI;
+const deg2rad = d => d * Math.PI / 180;
+const fmtSigned = (v, d = 1) => `${v >= 0 ? "+" : ""}${v.toFixed(d)}`;
+
+function meanStd(arr) {
+  const n = arr.length;
+  const mean = arr.reduce((s, x) => s + x, 0) / n;
+  const variance = n > 1 ? arr.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1) : 0;
+  return { mean, std: Math.sqrt(variance) };
+}
+
+function circularMeanStdDeg(arrDeg) {
+  const n = arrDeg.length;
+  let sinSum = 0, cosSum = 0;
+  for (const d of arrDeg) {
+    const r = deg2rad(d);
+    sinSum += Math.sin(r);
+    cosSum += Math.cos(r);
+  }
+  const mean = rad2deg(Math.atan2(sinSum / n, cosSum / n));
+  const Rlen = clamp(Math.hypot(sinSum, cosSum) / n, 1e-9, 1);
+  const std = rad2deg(Math.sqrt(-2 * Math.log(Rlen)));
+  return { mean, std: isFinite(std) ? std : 0 };
+}
+
+function matMulVec(R, v) {
+  return [
+    R[0]*v[0] + R[1]*v[1] + R[2]*v[2],
+    R[3]*v[0] + R[4]*v[1] + R[5]*v[2],
+    R[6]*v[0] + R[7]*v[1] + R[8]*v[2],
+  ];
+}
+
+function matMulMatT(A, B) {
+  // A * B^T (beide 3x3 row-major)
+  const out = new Array(9);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      out[i*3 + j] = A[i*3]*B[j*3] + A[i*3+1]*B[j*3+1] + A[i*3+2]*B[j*3+2];
+    }
+  }
+  return out;
+}
+
+function median(arr) {
+  const s = arr.slice().sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function angleDiffDeg(a, b) {
+  let d = (a - b) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+function matTmulVec(R, v) {
+  return [
+    R[0]*v[0] + R[3]*v[1] + R[6]*v[2],
+    R[1]*v[0] + R[4]*v[1] + R[7]*v[2],
+    R[2]*v[0] + R[5]*v[1] + R[8]*v[2],
+  ];
+}
+
+function matTmulMat(RA, RB) {
+  const out = new Array(9);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      out[i*3 + j] = RA[i]*RB[j] + RA[3+i]*RB[3+j] + RA[6+i]*RB[6+j];
+    }
+  }
+  return out;
+}
+
+function eulerZYXFromR(R) {
+  const sy = clamp(-R[6], -1, 1);
+  const pitchY = Math.asin(sy);
+  let rollX, yawZ;
+  if (Math.abs(sy) < 0.9999) {
+    rollX = Math.atan2(R[7], R[8]);
+    yawZ = Math.atan2(R[3], R[0]);
+  } else {
+    rollX = Math.atan2(-R[5], R[4]);
+    yawZ = 0;
+  }
+  return { rollX: rad2deg(rollX), pitchY: rad2deg(pitchY), yawZ: rad2deg(yawZ) };
+}
+
+function sphericalFromNormal(nx, ny, nz) {
+  return {
+    azim: rad2deg(Math.atan2(nx, -ny)),
+    elev: rad2deg(Math.atan2(nz, Math.hypot(nx, ny))),
+  };
+}
+
+// --------- Widgets ---------
+function drawSphereWidget(azimDeg, elevDeg, accentColor = "#22c55e") {
+  const c = sphereCtx, W = 128, H = 128, cx = W / 2, cy = H / 2, R = 43;
+  c.clearRect(0, 0, W, H);
+
+  c.strokeStyle = "rgba(148,163,184,0.35)";
+  c.lineWidth = 1.5;
+  c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
+
+  c.setLineDash([3, 3]);
+  c.beginPath(); c.arc(cx, cy, R * Math.cos(Math.PI / 4), 0, Math.PI * 2); c.stroke();
+  c.setLineDash([]);
+
+  c.strokeStyle = "rgba(148,163,184,0.2)";
+  c.beginPath();
+  c.moveTo(cx - R, cy); c.lineTo(cx + R, cy);
+  c.moveTo(cx, cy - R); c.lineTo(cx, cy + R);
+  c.stroke();
+
+  c.fillStyle = "rgba(248,250,252,0.18)";
+  c.strokeStyle = accentColor;
+  c.lineWidth = 1.3;
+  c.fillRect(cx - 7, cy - 7, 14, 14);
+  c.strokeRect(cx - 7, cy - 7, 14, 14);
+  c.strokeStyle = "#f59e0b";
+  c.lineWidth = 2.5;
+  c.beginPath(); c.moveTo(cx + 7, cy - 6); c.lineTo(cx + 7, cy + 6); c.stroke();
+
+  c.fillStyle = "#94a3b8";
+  c.font = "bold 9px system-ui";
+  c.textAlign = "center";
+  c.fillText("0° V", cx, cy + R + 12);
+  c.fillText("180°", cx, cy - R - 5);
+  c.fillStyle = "#ef4444";
+  c.fillText("+X", cx + R + 11, cy + 3);
+  c.fillStyle = "#94a3b8";
+  c.fillText("-X", cx - R - 11, cy + 3);
+
+  if (azimDeg === null || elevDeg === null) return;
+
+  const az = deg2rad(azimDeg), el = deg2rad(elevDeg);
+  const rOrb = R * Math.cos(clamp(el, 0, Math.PI / 2));
+  const px = cx + rOrb * Math.sin(az);
+  const py = cy + rOrb * Math.cos(az);
+
+  c.strokeStyle = "#38bdf8";
+  c.lineWidth = 2;
+  c.beginPath(); c.moveTo(cx, cy); c.lineTo(px, py); c.stroke();
+
+  c.fillStyle = accentColor;
+  c.beginPath(); c.arc(cx + R * Math.sin(az), cy + R * Math.cos(az), 3.5, 0, Math.PI * 2); c.fill();
+
+  c.fillStyle = elevDeg < 0 ? "#f59e0b" : "#38bdf8";
+  c.strokeStyle = "#fff";
+  c.lineWidth = 1.5;
+  c.beginPath(); c.arc(px, py, 5.5, 0, Math.PI * 2); c.fill(); c.stroke();
+}
+
+function drawGizmo(rData) {
+  const c = gizmoCtx, W = 96, H = 96, cx = W / 2, cy = H / 2, L = 30;
+  c.clearRect(0, 0, W, H);
+  if (!rData) return;
+
+  const axes = [
+    { name: "X", col: "#ef4444", x: rData[0], y: rData[3], z: rData[6] },
+    { name: "Y", col: "#22c55e", x: rData[1], y: rData[4], z: rData[7] },
+    { name: "Z", col: "#3b82f6", x: rData[2], y: rData[5], z: rData[8] },
+  ];
+  axes.sort((a, b) => b.z - a.z);
+
+  c.font = "bold 11px system-ui";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  for (const a of axes) {
+    const ex = cx + a.x * L, ey = cy + a.y * L;
+    c.strokeStyle = a.col;
+    c.lineWidth = 3;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(ex, ey); c.stroke();
+    c.fillStyle = a.col;
+    c.beginPath(); c.arc(ex, ey, 3.5, 0, Math.PI * 2); c.fill();
+    c.fillText(a.name, cx + a.x * (L + 10), cy + a.y * (L + 10));
+  }
+  c.fillStyle = "#f8fafc";
+  c.beginPath(); c.arc(cx, cy, 3, 0, Math.PI * 2); c.fill();
+}
+
+// --------- Marker-Erkennung (IDs 0..14) ---------
+function orderQuadCW(pts) {
+  let area = 0;
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    area += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+  }
+  return area < 0 ? [pts[0], pts[3], pts[2], pts[1]] : pts;
+}
+
+function readMatFloats(mat) {
+  return mat.depth() === cv.CV_64F ? Array.from(mat.data64F) : Array.from(mat.data32F);
+}
+
+function detectMarkersJS(gray) {
+  const thresh = new cv.Mat();
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, 36, 0, 36, 36, 0, 36]);
+  const patch = new cv.Mat();
+  const patchBin = new cv.Mat();
+  const bestById = new Map(); // id -> { area, corners }
+
+  try {
+    const blockSize = Math.max(11, (Math.round(Math.min(gray.rows, gray.cols) / 25) | 1));
+    cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, blockSize, 7);
+    cv.findContours(thresh, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    const minArea = Math.max(180, (gray.rows * gray.cols) * 0.0005);
+    const maxArea = (gray.rows * gray.cols) * 0.65;
+    let quadChecks = 0;
+    const maxQuads = 120;
+
+    for (let i = 0; i < contours.size() && quadChecks < maxQuads; i++) {
+      const cnt = contours.get(i);
+      let approx = null, srcPts = null, M = null;
+      try {
+        const area = cv.contourArea(cnt);
+        if (area < minArea || area > maxArea) continue;
+        const peri = cv.arcLength(cnt, true);
+        approx = new cv.Mat();
+        cv.approxPolyDP(cnt, approx, 0.03 * peri, true);
+        if (approx.rows !== 4 || !cv.isContourConvex(approx)) continue;
+        quadChecks++;
+
+        let pts = [];
+        for (let k = 0; k < 4; k++) pts.push([approx.data32S[k * 2], approx.data32S[k * 2 + 1]]);
+        pts = orderQuadCW(pts);
+        srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, pts.flat());
+        M = cv.getPerspectiveTransform(srcPts, dstPts);
+        cv.warpPerspective(gray, patch, M, new cv.Size(36, 36), cv.INTER_LINEAR);
+        cv.threshold(patch, patchBin, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+
+        let borderOk = true;
+        let innerMask = 0;
+        for (let r = 0; r < 6 && borderOk; r++) {
+          for (let c = 0; c < 6; c++) {
+            let dark = 0;
+            for (let dy = 2; dy <= 4; dy++) {
+              for (let dx = 2; dx <= 4; dx++) {
+                if (patchBin.ucharAt(r * 6 + dy, c * 6 + dx) === 0) dark++;
+              }
+            }
+            const isBlack = dark >= 5 ? 1 : 0;
+            if (r === 0 || r === 5 || c === 0 || c === 5) {
+              if (!isBlack) { borderOk = false; break; }
+            } else {
+              innerMask = (innerMask << 1) | isBlack;
+            }
+          }
+        }
+
+        if (borderOk) {
+          const hit = MARKER_MAP.get(innerMask);
+          // Bei doppelter Kontur (innen/außen) immer die größte äußere Kontur pro ID behalten
+          if (hit && (!bestById.has(hit.id) || area > bestById.get(hit.id).area)) {
+            // hit.rot = Anzahl 90°-CW-Drehungen des Warps -> wahre Ecke 0 (TL) liegt bei pts[hit.rot]
+            const shift = hit.rot % 4;
+            const ordered = [0, 1, 2, 3].map(idx => pts[(idx + shift) % 4]);
+            let refined = ordered;
+            let sp = null;
+            try {
+              sp = cv.matFromArray(4, 1, cv.CV_32FC2, ordered.flat());
+              cv.cornerSubPix(gray, sp, new cv.Size(5, 5), new cv.Size(-1, -1),
+                new cv.TermCriteria(cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 15, 0.1));
+              refined = [];
+              for (let k = 0; k < 4; k++) refined.push([sp.data32F[k * 2], sp.data32F[k * 2 + 1]]);
+            } catch (_) {
+            } finally {
+              if (sp) sp.delete();
+            }
+            bestById.set(hit.id, { area, corners: refined });
+          }
+        }
+      } finally {
+        if (M) M.delete();
+        if (srcPts) srcPts.delete();
+        if (approx) approx.delete();
+        cnt.delete();
+      }
+    }
+  } finally {
+    dstPts.delete(); patch.delete(); patchBin.delete();
+    thresh.delete(); contours.delete(); hierarchy.delete();
+  }
+  return Array.from(bestById.entries()).map(([id, v]) => ({ id, corners: v.corners }));
+}
+
+// --------- 3D Pose für einen Messwürfel ---------
+function trySolvePnP(objMat, imgMat, K, dist, flag, faceMatches, faceSpecs, cubeCfg, cubeSize, nPts, imgArr) {
+  const rvec = new cv.Mat(), tvec = new cv.Mat();
+  let RMat = null, proj = null, orig3 = null, orig2 = null;
+  try {
+    const ok = cv.solvePnP(objMat, imgMat, K, dist, rvec, tvec, false, flag);
+    if (!ok) return { reason: "solvePnP=false" };
+
+    const t = readMatFloats(tvec);
+    if (t.length < 3 || !Number.isFinite(t[2]) || t[2] <= 10 || t[2] > 20000) {
+      return { reason: `tz=${Number.isFinite(t[2]) ? t[2].toFixed(0) : "NaN"}` };
+    }
+
+    RMat = new cv.Mat();
+    cv.Rodrigues(rvec, RMat);
+    const R = readMatFloats(RMat);
+    if (R.length < 9 || R.some(v => !Number.isFinite(v)) || t.some(v => !Number.isFinite(v))) {
+      return { reason: "NaN" };
+    }
+
+    // Mindestens eine erkannte Fläche muss zur Kamera zeigen (verhindert 180°-Spiegelung)
+    let anyFront = false;
+    for (const m of faceMatches) {
+      const fspec = faceSpecs[m.id - cubeCfg.idOffset];
+      const nCam = matMulVec(R, fspec.n);
+      const cCam = matMulVec(R, fspec.c);
+      const toCam = [-(cCam[0] + t[0]), -(cCam[1] + t[1]), -(cCam[2] + t[2])];
+      if (nCam[0]*toCam[0] + nCam[1]*toCam[1] + nCam[2]*toCam[2] > 0) {
+        anyFront = true;
+        break;
+      }
+    }
+    if (!anyFront) return { reason: "backfacing" };
+
+    proj = new cv.Mat();
+    cv.projectPoints(objMat, rvec, tvec, K, dist, proj);
+    const pData = readMatFloats(proj);
+    let sqSum = 0;
+    for (let i = 0; i < nPts; i++) {
+      const dx = pData[i * 2] - imgArr[i * 2];
+      const dy = pData[i * 2 + 1] - imgArr[i * 2 + 1];
+      sqSum += dx * dx + dy * dy;
+    }
+    const rms = Math.sqrt(sqSum / nPts);
+    if (!Number.isFinite(rms) || rms > 35.0) return { reason: `RMS ${rms.toFixed(1)} px` };
+
+    orig3 = cv.matFromArray(1, 1, cv.CV_32FC3, [0, 0, cubeSize / 2]);
+    orig2 = new cv.Mat();
+    cv.projectPoints(orig3, rvec, tvec, K, dist, orig2);
+    const oData = readMatFloats(orig2);
+    const centerPx = [oData[0], oData[1]];
+
+    return { ok: true, R, t: [t[0], t[1], t[2]], rms, centerPx };
+  } catch (e) {
+    return { reason: typeof e === "number" ? `cv#${e}` : String(e?.message || e) };
+  } finally {
+    if (orig2) orig2.delete();
+    if (orig3) orig3.delete();
+    if (proj) proj.delete();
+    if (RMat) RMat.delete();
+    rvec.delete();
+    tvec.delete();
+  }
+}
+
+function solveCubePose(cubeCfg, faceMatches, faceSpecs, cubeSize, K, dist, pivotZ) {
+  const objArr = [], imgArr = [], ids = [];
+  for (const m of faceMatches) {
+    const localIdx = m.id - cubeCfg.idOffset;
+    ids.push(m.id);
+    for (let k = 0; k < 4; k++) {
+      objArr.push(...faceSpecs[localIdx].corners[k]);
+      imgArr.push(...m.corners[k]);
+    }
+  }
+  ids.sort((a, b) => a - b);
+
+  const nPts = objArr.length / 3;
+  const objMat = cv.matFromArray(nPts, 1, cv.CV_32FC3, objArr);
+  const imgMat = cv.matFromArray(nPts, 1, cv.CV_32FC2, imgArr);
+
+  let solved = null;
+  let lastReason = "";
+  try {
+    // SQPNP funktioniert für 1, 2 und 3 Flächen direkt im 3D-Raum (kein WASM-Freeze durch IPPE_SQUARE);
+    // Fallback auf ITERATIVE falls SQPNP keinen gültigen Treffer liefert.
+    const flags = [];
+    if (typeof cv.SOLVEPNP_SQPNP === "number") flags.push(cv.SOLVEPNP_SQPNP);
+    flags.push(cv.SOLVEPNP_ITERATIVE);
+
+    let best = null;
+    for (const fl of flags) {
+      const res = trySolvePnP(objMat, imgMat, K, dist, fl, faceMatches, faceSpecs, cubeCfg, cubeSize, nPts, imgArr);
+      if (res.ok) {
+        if (!best || res.rms < best.rms) best = res;
+        // Bei Multi-Fläche + kleinem RMS reicht der erste Treffer sofort
+        if (faceMatches.length >= 2 && res.rms < 6.0) break;
+      } else if (res.reason) {
+        lastReason = res.reason;
+      }
+    }
+
+    if (best) {
+      const { R, t, rms, centerPx } = best;
+      const camPos = matTmulVec(R, [-t[0], -t[1], -t[2]]);
+      const vx = camPos[0], vy = camPos[1], vz = camPos[2] - pivotZ;
+      const distMm = Math.hypot(vx, vy, vz);
+      if (Number.isFinite(distMm) && distMm > 10) {
+        const normal = [vx / distMm, vy / distMm, vz / distMm];
+        const sph = sphericalFromNormal(normal[0], normal[1], normal[2]);
+
+        solved = {
+          key: cubeCfg.key,
+          label: cubeCfg.label,
+          idOffset: cubeCfg.idOffset,
+          color: cubeCfg.color,
+          ids,
+          R, t, centerPx,
+          camPosMm: camPos,
+          distMm, distCm: distMm / 10.0,
+          normal,
+          azim: sph.azim,
+          elev: sph.elev,
+          rms,
+          samples: 1,
+          samplesTotal: 1,
+          azimStd: null,
+          elevStd: null,
+          distStdMm: null,
+        };
+      }
+    }
+  } finally {
+    objMat.delete(); imgMat.delete();
+  }
+  return { solved, reason: lastReason };
+}
+
+function computeRelations(objects) {
+  const rels = [];
+  for (let i = 0; i < objects.length; i++) {
+    for (let j = i + 1; j < objects.length; j++) {
+      const A = objects[i], B = objects[j];
+      const dt = [B.t[0] - A.t[0], B.t[1] - A.t[1], B.t[2] - A.t[2]];
+      const distMm = Math.hypot(dt[0], dt[1], dt[2]);
+      const deltaInA = matTmulVec(A.R, dt);
+      const dirSph = distMm > 1e-6
+        ? sphericalFromNormal(deltaInA[0] / distMm, deltaInA[1] / distMm, deltaInA[2] / distMm)
+        : { azim: 0, elev: 0 };
+
+      const Rrel = matTmulMat(A.R, B.R);
+      const bNormalInA = [Rrel[2], Rrel[5], Rrel[8]];
+      const bNormSph = sphericalFromNormal(bNormalInA[0], bNormalInA[1], bNormalInA[2]);
+      const normalAngleDeg = rad2deg(Math.acos(clamp(Rrel[8], -1, 1)));
+      const totalRotDeg = rad2deg(Math.acos(clamp((Rrel[0] + Rrel[4] + Rrel[8] - 1) / 2, -1, 1)));
+      const euler = eulerZYXFromR(Rrel);
+
+      rels.push({
+        pairKey: `${A.key}_${B.key}`,
+        aKey: A.key, aLabel: A.label, aCenterPx: A.centerPx,
+        bKey: B.key, bLabel: B.label, bCenterPx: B.centerPx,
+        distMm, distCm: distMm / 10.0, distStdMm: null,
+        deltaInA,
+        dirAzimInA: dirSph.azim,
+        dirElevInA: dirSph.elev,
+        normalAngleDeg,
+        totalRotDeg,
+        euler,
+        bNormalInA,
+        bNormSph,
+        samples: 1,
+      });
+    }
+  }
+  return rels;
+}
+
+// --------- 3-Sekunden-Capture Mittelung (mit Ausreißer-Filterung) ---------
+function filterOutlierObjects(rawList) {
+  if (rawList.length <= 3) return rawList;
+  // Multi-Flächen-Frames (2–3 Flächen) bevorzugen, sobald mind. 3 davon vorliegen
+  const multi = rawList.filter(o => o.ids.length >= 2);
+  let pool = multi.length >= 3 ? multi : rawList;
+
+  // MAD-Ausreißer-Filter auf Azimut, Elevation & Abstand
+  const azMed = circularMeanStdDeg(pool.map(o => o.azim)).mean;
+  const elMed = median(pool.map(o => o.elev));
+  const dMed = median(pool.map(o => o.distMm));
+
+  const azMad = median(pool.map(o => Math.abs(angleDiffDeg(o.azim, azMed))));
+  const elMad = median(pool.map(o => Math.abs(o.elev - elMed)));
+  const dMad = median(pool.map(o => Math.abs(o.distMm - dMed)));
+
+  const azTol = Math.max(3.0, azMad * 3.0);
+  const elTol = Math.max(3.0, elMad * 3.0);
+  const dTol = Math.max(20.0, dMad * 3.0);
+
+  const filtered = pool.filter(o =>
+    Math.abs(angleDiffDeg(o.azim, azMed)) <= azTol &&
+    Math.abs(o.elev - elMed) <= elTol &&
+    Math.abs(o.distMm - dMed) <= dTol
+  );
+  return filtered.length >= 2 ? filtered : pool;
+}
+
+function filterOutlierRelations(rawList) {
+  if (rawList.length <= 3) return rawList;
+  const dMed = median(rawList.map(r => r.distMm));
+  const aMed = median(rawList.map(r => r.normalAngleDeg));
+  const dTol = Math.max(15.0, median(rawList.map(r => Math.abs(r.distMm - dMed))) * 3.0);
+  const aTol = Math.max(3.5, median(rawList.map(r => Math.abs(r.normalAngleDeg - aMed))) * 3.0);
+  const filtered = rawList.filter(r =>
+    Math.abs(r.distMm - dMed) <= dTol && Math.abs(r.normalAngleDeg - aMed) <= aTol
+  );
+  return filtered.length >= 2 ? filtered : rawList;
+}
+
+function aggregateCaptureSamples(samples, lastFrameSnap) {
+  const objBuckets = new Map();
+  const relBuckets = new Map();
+
+  for (const s of samples) {
+    for (const o of s.objects) {
+      if (!objBuckets.has(o.key)) objBuckets.set(o.key, []);
+      objBuckets.get(o.key).push(o);
+    }
+    for (const r of s.relations) {
+      if (!relBuckets.has(r.pairKey)) relBuckets.set(r.pairKey, []);
+      relBuckets.get(r.pairKey).push(r);
+    }
+  }
+
+  const avgObjects = [];
+  for (const cfg of CUBES) {
+    const rawList = objBuckets.get(cfg.key);
+    if (!rawList || rawList.length === 0) continue;
+    const list = filterOutlierObjects(rawList);
+
+    const az = circularMeanStdDeg(list.map(o => o.azim));
+    const el = circularMeanStdDeg(list.map(o => o.elev));
+    const dMm = meanStd(list.map(o => o.distMm));
+    const rmsM = meanStd(list.map(o => o.rms));
+    const camX = meanStd(list.map(o => o.camPosMm[0])).mean;
+    const camY = meanStd(list.map(o => o.camPosMm[1])).mean;
+    const camZ = meanStd(list.map(o => o.camPosMm[2])).mean;
+    const nx = meanStd(list.map(o => o.normal[0])).mean;
+    const ny = meanStd(list.map(o => o.normal[1])).mean;
+    const nz = meanStd(list.map(o => o.normal[2])).mean;
+    const nLen = Math.hypot(nx, ny, nz) || 1;
+
+    const allIds = Array.from(new Set(list.flatMap(o => o.ids))).sort((a, b) => a - b);
+    // Repräsentatives R-Gizmo: Sample mit geringster Abweichung zum Mittelwert
+    let bestObj = list[list.length - 1], bestErr = Infinity;
+    for (const o of list) {
+      const err = Math.abs(angleDiffDeg(o.azim, az.mean)) + Math.abs(o.elev - el.mean);
+      if (err < bestErr) { bestErr = err; bestObj = o; }
+    }
+
+    avgObjects.push({
+      ...bestObj,
+      ids: allIds,
+      azim: az.mean, azimStd: az.std,
+      elev: el.mean, elevStd: el.std,
+      distMm: dMm.mean, distCm: dMm.mean / 10.0, distStdMm: dMm.std,
+      camPosMm: [camX, camY, camZ],
+      normal: [nx / nLen, ny / nLen, nz / nLen],
+      rms: rmsM.mean,
+      samples: list.length,
+      samplesTotal: rawList.length,
+    });
+  }
+
+  const avgRelations = [];
+  for (const [, rawList] of relBuckets.entries()) {
+    const list = filterOutlierRelations(rawList);
+    const dMm = meanStd(list.map(r => r.distMm));
+    const dx = meanStd(list.map(r => r.deltaInA[0])).mean;
+    const dy = meanStd(list.map(r => r.deltaInA[1])).mean;
+    const dz = meanStd(list.map(r => r.deltaInA[2])).mean;
+    const dirAz = circularMeanStdDeg(list.map(r => r.dirAzimInA)).mean;
+    const dirEl = circularMeanStdDeg(list.map(r => r.dirElevInA)).mean;
+    const nAng = meanStd(list.map(r => r.normalAngleDeg)).mean;
+    const tRot = meanStd(list.map(r => r.totalRotDeg)).mean;
+    const rollX = circularMeanStdDeg(list.map(r => r.euler.rollX)).mean;
+    const pitchY = circularMeanStdDeg(list.map(r => r.euler.pitchY)).mean;
+    const yawZ = circularMeanStdDeg(list.map(r => r.euler.yawZ)).mean;
+    const bnx = meanStd(list.map(r => r.bNormalInA[0])).mean;
+    const bny = meanStd(list.map(r => r.bNormalInA[1])).mean;
+    const bnz = meanStd(list.map(r => r.bNormalInA[2])).mean;
+    const bLen = Math.hypot(bnx, bny, bnz) || 1;
+    const bNorm = [bnx / bLen, bny / bLen, bnz / bLen];
+    const bSph = sphericalFromNormal(bNorm[0], bNorm[1], bNorm[2]);
+
+    const lastRel = list[list.length - 1];
+    avgRelations.push({
+      ...lastRel,
+      distMm: dMm.mean, distCm: dMm.mean / 10.0, distStdMm: dMm.std,
+      deltaInA: [dx, dy, dz],
+      dirAzimInA: dirAz, dirElevInA: dirEl,
+      normalAngleDeg: nAng, totalRotDeg: tRot,
+      euler: { rollX, pitchY, yawZ },
+      bNormalInA: bNorm, bNormSph: bSph,
+      samples: list.length,
+      samplesTotal: rawList.length,
+    });
+  }
+
+  return {
+    timestamp: new Date(),
+    isCapture: true,
+    totalFrames: samples.length,
+    config: lastFrameSnap.config,
+    rawMarkers: lastFrameSnap.rawMarkers,
+    objects: avgObjects,
+    relations: avgRelations,
+  };
+}
+
+// --------- Canvas Overlay ---------
+function drawOverlay(snap) {
+  if (!snap) return;
+  const w = canvas.width;
+  ctx.lineWidth = Math.max(2, w / 260);
+  const fontSize = Math.max(15, Math.round(w / 42));
+  ctx.font = `700 ${fontSize}px -apple-system, system-ui, sans-serif`;
+
+  for (const m of snap.rawMarkers) {
+    ctx.strokeStyle = m.color;
+    ctx.beginPath();
+    m.corners.forEach((p, idx) => idx === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]));
+    ctx.closePath();
+    ctx.stroke();
+
+    const tag = `M${Math.floor(m.id / 5) + 1} · ID ${m.id}`;
+    const tx = m.corners[0][0] + 4, ty = m.corners[0][1] - 8;
+    ctx.fillStyle = "rgba(9,13,22,0.78)";
+    const tw = ctx.measureText(tag).width + 8;
+    ctx.fillRect(tx - 4, ty - fontSize + 2, tw, fontSize + 4);
+    ctx.fillStyle = m.color;
+    ctx.fillText(tag, tx, ty);
+  }
+
+  for (const r of snap.relations) {
+    const [x1, y1] = r.aCenterPx, [x2, y2] = r.bCenterPx;
+    ctx.save();
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = Math.max(2, w / 300);
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    for (const [px, py] of [[x1, y1], [x2, y2]]) {
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath(); ctx.arc(px, py, Math.max(4, w / 160), 0, Math.PI * 2); ctx.fill();
+    }
+
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const txt = `${r.distMm.toFixed(1)} mm · ${r.normalAngleDeg.toFixed(1)}°`;
+    const padX = 8, bh = fontSize + 8;
+    const bw = ctx.measureText(txt).width + padX * 2;
+    ctx.fillStyle = "rgba(15,23,42,0.9)";
+    ctx.strokeStyle = "rgba(56,189,248,0.8)";
+    ctx.lineWidth = 1.5;
+    if (typeof ctx.roundRect === "function") {
+      ctx.beginPath();
+      ctx.roundRect(mx - bw / 2, my - bh / 2, bw, bh, 8);
+      ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillRect(mx - bw / 2, my - bh / 2, bw, bh);
+      ctx.strokeRect(mx - bw / 2, my - bh / 2, bw, bh);
+    }
+    ctx.fillStyle = "#e0f2fe";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(txt, mx, my);
+    ctx.restore();
+  }
+}
+
+// --------- HUD & Details ---------
+function updateHUD(snap) {
+  if (!snap || snap.objects.length === 0) {
+    if (capturePhase === "idle") {
+      if (snap && snap.rawMarkers && snap.rawMarkers.length > 0) {
+        const idsTxt = snap.rawMarkers.map(m => m.id).join(",");
+        const why = snap.rejectReason ? ` (${snap.rejectReason})` : "";
+        vMeta.textContent = `Fläche erkannt (ID ${idsTxt}), Pose instabil${why} — leicht drehen`;
+      } else {
+        vMeta.textContent = "Kein Messwürfel erkannt — Marker 1, 2 oder 3 ins Bild halten";
+      }
+      relBanner.classList.remove("visible");
+      targetChips.classList.remove("visible");
+      if (cvReady) {
+        statusEl.textContent = streaming ? "Suche…" : "Bereit";
+        statusEl.className = "badge ok";
+      }
+    }
+    return;
+  }
+
+  btnExport.disabled = false;
+  const objs = snap.objects;
+  if (!selectedObjKey || !objs.some(o => o.key === selectedObjKey)) {
+    selectedObjKey = objs[0].key;
+  }
+  const active = objs.find(o => o.key === selectedObjKey) || objs[0];
+
+  if (snap.isCapture) {
+    statusEl.textContent = `Capture ✓ (${active.samples}×)`;
+    statusEl.className = "badge multi";
+  } else if (capturePhase === "recording") {
+    statusEl.textContent = `REC (${captureSamples.length})`;
+    statusEl.className = "badge rec";
+  } else {
+    statusEl.textContent = objs.length > 1 ? `Multi (${objs.length} Würfel)` : `${active.label} (${active.ids.length} Fl.)`;
+    statusEl.className = objs.length > 1 ? "badge multi" : "badge ok";
+  }
+
+  if (objs.length > 1) {
+    targetChips.classList.add("visible");
+    targetChips.innerHTML = objs.map(o =>
+      `<button class="chip ${o.key === active.key ? "selected" : ""}" data-key="${o.key}">${o.label}</button>`
+    ).join("");
+    targetChips.querySelectorAll(".chip").forEach(btn => {
+      btn.onclick = () => { selectedObjKey = btn.dataset.key; updateHUD(lastSnapshot); };
+    });
+  } else {
+    targetChips.classList.remove("visible");
+  }
+
+  const azSigma = active.azimStd !== null ? `<span class="sigma">±${active.azimStd.toFixed(2)}°</span>` : "";
+  const elSigma = active.elevStd !== null ? `<span class="sigma">±${active.elevStd.toFixed(2)}°</span>` : "";
+  vAzim.innerHTML = `${fmtSigned(active.azim, 1)}°${azSigma}`;
+  vElev.innerHTML = `${fmtSigned(active.elev, 1)}°${elSigma}`;
+  vAzim.classList.remove("muted");
+  vElev.classList.remove("muted");
+
+  const capInfo = snap.isCapture ? ` · Ø aus ${active.samples} Samples` : "";
+  vMeta.textContent = `${active.label} (IDs: ${active.ids.join(",")}) · ${active.distCm.toFixed(1)} cm · RMS ${active.rms.toFixed(1)} px${capInfo}`;
+
+  drawSphereWidget(active.azim, active.elev, active.color);
+  drawGizmo(active.R);
+
+  if (snap.relations.length > 0) {
+    const r = snap.relations[0];
+    const [dx, dy, dz] = r.deltaInA;
+    relBanner.textContent = `↔ ${r.aLabel} → ${r.bLabel}: ${r.distMm.toFixed(1)} mm · Δ(${fmtSigned(dx,0)}, ${fmtSigned(dy,0)}, ${fmtSigned(dz,0)}) mm · ${r.normalAngleDeg.toFixed(1)}°`
+      + (snap.relations.length > 1 ? ` (+${snap.relations.length - 1})` : "");
+    relBanner.classList.add("visible");
+  } else {
+    relBanner.classList.remove("visible");
+  }
+
+  if (detailsDrawer.classList.contains("open")) renderDetailsDrawer();
+}
+
+function renderDetailsDrawer() {
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    detailsBody.innerHTML = `<div class="detail-card" style="color:var(--muted);">Noch kein Messwürfel erkannt.</div>`;
+    return;
+  }
+  const s = lastSnapshot;
+  let html = `<div class="sec-title">${s.isCapture ? `Capture-Mittelwert (${s.totalFrames} Frames)` : "Live-Messwerte"} · ${s.objects.length} Objekt(e)</div>`;
+  for (const o of s.objects) {
+    const stdInfo = o.azimStd !== null ? ` (±${o.azimStd.toFixed(2)}° / ±${o.elevStd.toFixed(2)}° · N=${o.samples})` : "";
+    html += `<div class="detail-card">
+      <strong style="color:${o.color};">${o.label}</strong> <span class="mono">(IDs: ${o.ids.join(", ")} · RMS ${o.rms.toFixed(2)} px)</span><br>
+      Kugelkoordinaten: <strong>Azimut ${fmtSigned(o.azim, 2)}°</strong> · <strong>Elevation ${fmtSigned(o.elev, 2)}°</strong><span class="mono">${stdInfo}</span><br>
+      Abstand Kamera: <strong>${o.distCm.toFixed(2)} cm</strong> (${o.distMm.toFixed(1)} mm${o.distStdMm !== null ? ` ±${o.distStdMm.toFixed(1)}` : ""})<br>
+      <span class="mono">Kamera XYZ: (${o.camPosMm.map(v => v.toFixed(1)).join(", ")}) mm</span><br>
+      <span class="mono">Blickvektor n: (${o.normal.map(v => v.toFixed(4)).join(", ")})</span>
+    </div>`;
+  }
+
+  if (s.relations.length > 0) {
+    html += `<div class="sec-title">Relationen untereinander (${s.relations.length})</div>`;
+    for (const r of s.relations) {
+      html += `<div class="detail-card">
+        <strong>${r.aLabel} ↔ ${r.bLabel}</strong>${r.samples > 1 ? ` <span class="mono">(Ø N=${r.samples})</span>` : ""}<br>
+        3D-Abstand: <strong>${r.distMm.toFixed(1)} mm</strong>${r.distStdMm !== null ? ` (±${r.distStdMm.toFixed(1)} mm)` : ""} · (${r.distCm.toFixed(2)} cm)<br>
+        Versatz in ${r.aLabel}: <span class="mono">ΔX=${fmtSigned(r.deltaInA[0],1)}, ΔY=${fmtSigned(r.deltaInA[1],1)}, ΔZ=${fmtSigned(r.deltaInA[2],1)} mm</span><br>
+        Richtung A→B: <span class="mono">Azim ${fmtSigned(r.dirAzimInA,1)}°, Elev ${fmtSigned(r.dirElevInA,1)}°</span><br>
+        Ausrichtung: <strong>Flächenwinkel ${r.normalAngleDeg.toFixed(1)}°</strong> · 3D-Drehung ${r.totalRotDeg.toFixed(1)}°<br>
+        <span class="mono">Rel. Euler (R/P/Y): ${fmtSigned(r.euler.rollX,1)}° / ${fmtSigned(r.euler.pitchY,1)}° / ${fmtSigned(r.euler.yawZ,1)}°</span><br>
+        <span class="mono">Normale B in A: (${r.bNormalInA.map(v => v.toFixed(4)).join(", ")}) [Az ${fmtSigned(r.bNormSph.azim,1)}°, El ${fmtSigned(r.bNormSph.elev,1)}°]</span>
+      </div>`;
+    }
+  } else {
+    html += `<div class="sec-title">Relationen untereinander</div>
+      <div class="detail-card" style="color:var(--muted);">Sobald 2 oder 3 Messwürfel (Marker 1–3) gleichzeitig im Bild sind, werden 3D-Abstand, ΔX/ΔY/ΔZ und Ausrichtung zueinander berechnet.</div>`;
+  }
+  detailsBody.innerHTML = html;
+}
+
+// --------- Frame-Analyse ---------
+function analyzeCurrentCanvas(highRes = false) {
+  if (!cvReady) return null;
+  const cw = canvas.width, ch = canvas.height;
+  if (!cw || !ch) return null;
+
+  // Live-Vorschau: 640 px für 60 FPS; während 3s-Capture: 800 px (schärfer ohne Safari zu blockieren)
+  const maxW = highRes ? 800 : 640;
+  const scale = Math.min(1, maxW / Math.max(cw, ch));
+  const ww = Math.round(cw * scale), wh = Math.round(ch * scale);
+  if (workCanvas.width !== ww || workCanvas.height !== wh) {
+    workCanvas.width = ww; workCanvas.height = wh;
+  }
+  workCtx.drawImage(canvas, 0, 0, ww, wh);
+
+  let src = null, gray = null, K = null, dist = null;
+  try {
+    src = cv.imread(workCanvas);
+    gray = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+    const detectedSmall = detectMarkersJS(gray);
+    const inv = 1.0 / scale;
+    const rawCube = parseFloat(document.getElementById("cubeSize").value);
+    const cubeSize = Number.isFinite(rawCube) && rawCube >= 10 ? rawCube : 48.0;
+    const markerSize = cubeSize * MARKER_RATIO;
+    const faceSpecs = buildFaceSpecs3D(cubeSize);
+    const rawPivot = parseFloat(document.getElementById("pivotZ").value);
+    const pivotZ = Number.isFinite(rawPivot) ? rawPivot : 0.0;
+    const rawFocal = parseFloat(document.getElementById("focal35").value);
+    const focal35 = Number.isFinite(rawFocal) && rawFocal >= 10 ? rawFocal : 24.0;
+
+    const grouped = new Map(CUBES.map(c => [c.key, []]));
+    const rawMarkers = [];
+
+    for (const m of detectedSmall) {
+      const cubeIdx = Math.floor(m.id / 5);
+      if (cubeIdx < 0 || cubeIdx >= CUBES.length) continue;
+      const cfg = CUBES[cubeIdx];
+      const scaledCorners = m.corners.map(p => [p[0] * inv, p[1] * inv]);
+      grouped.get(cfg.key).push({ id: m.id, corners: scaledCorners });
+      rawMarkers.push({ id: m.id, corners: scaledCorners, color: cfg.color });
+    }
+
+    const fpx = (focal35 / 36.0) * Math.max(cw, ch);
+    K = cv.matFromArray(3, 3, cv.CV_64F, [fpx, 0, cw / 2, 0, fpx, ch / 2, 0, 0, 1]);
+    dist = cv.matFromArray(5, 1, cv.CV_64F, [0, 0, 0, 0, 0]);
+
+    const objects = [];
+    let rejectReason = "";
+    for (const cfg of CUBES) {
+      const faces = grouped.get(cfg.key);
+      if (faces.length > 0) {
+        const res = solveCubePose(cfg, faces, faceSpecs, cubeSize, K, dist, pivotZ);
+        if (res.solved) objects.push(res.solved);
+        else if (res.reason) rejectReason = res.reason;
+      }
+    }
+
+    const relations = computeRelations(objects);
+    return {
+      timestamp: new Date(),
+      isCapture: false,
+      totalFrames: 1,
+      config: { cubeSize, markerSize, pivotZ, focal35, width: cw, height: ch },
+      rawMarkers,
+      objects,
+      relations,
+      rejectReason,
+    };
+  } catch (e) {
+    vMeta.textContent = `Fehler: ${e?.message || e}`;
+    return null;
+  } finally {
+    if (src) src.delete();
+    if (gray) gray.delete();
+    if (K) K.delete();
+    if (dist) dist.delete();
+  }
+}
+
+// --------- Text-Export ---------
+function buildTextReport(s) {
+  const ts = s.timestamp.toISOString().replace("T", " ").slice(0, 19);
+  const lines = [];
+  lines.push("====================================================================");
+  lines.push(" ARUCO 3D-MESSBERICHT (KUGELKOORDINATEN & MULTI-MARKER)");
+  lines.push("====================================================================");
+  lines.push(`Zeitstempel:      ${ts}`);
+  lines.push(`Messmodus:        ${s.isCapture ? `3s-Capture Durchschnitt (${s.totalFrames} gültige Frames)` : "Live-Einzelbild"}`);
+  lines.push(`Messwürfel:       ${s.config.cubeSize} mm 2-Farb (Marker ${s.config.markerSize.toFixed(1)} mm · Marker 1: ID 0-4, Marker 2: ID 5-9, Marker 3: ID 10-14)`);
+  lines.push(`Bezugshöhe Z:     ${s.config.pivotZ} mm`);
+  lines.push(`Brennweite:       ${s.config.focal35} mm (35mm-Äquiv.) | Auflösung: ${s.config.width}×${s.config.height} px`);
+  lines.push("");
+  lines.push("KOORDINATEN-KONVENTION (Rechtssystem, Z nach oben):");
+  lines.push("  +X = Rechts (3mm Orientierungsfase) | -Y = Vorne | +Y = Hinten | +Z = Oben");
+  lines.push("  angle_azimuth   = Orbit um Z (0°=vorne -Y, +90°=rechts +X, -90°=links -X)");
+  lines.push("  angle_elevation = Höhenwinkel über Horizontaler (0°=waagerecht, +90°=oben +Z)");
+  lines.push("");
+
+  lines.push(`--- 1. ERKANNTE MESSWÜRFEL (${s.objects.length}) --------------------------------------`);
+  for (const o of s.objects) {
+    lines.push("");
+    lines.push(`[${o.label}] (IDs: ${o.ids.join(", ")}${o.samples > 1 ? ` · Ø aus ${o.samples}/${o.samplesTotal} Samples (Ausreißer gefiltert)` : ""})`);
+    lines.push(`  Sichtbare Flächen:  ${o.ids.map(id => `ID ${id} (${FACE_LABELS[id - o.idOffset]})`).join(", ")}`);
+    lines.push(`  >>> Kugelkoordinaten (Kamera relativ zum Würfel):`);
+    lines.push(`      angle_azimuth   = ${o.azim.toFixed(2)} deg${o.azimStd !== null ? `  (±${o.azimStd.toFixed(2)} deg)` : ""}`);
+    lines.push(`      angle_elevation = ${o.elev.toFixed(2)} deg${o.elevStd !== null ? `  (±${o.elevStd.toFixed(2)} deg)` : ""}`);
+    lines.push(`      pivot_z         = ${s.config.pivotZ} mm`);
+    lines.push(`  Abstand Kamera:     ${o.distCm.toFixed(2)} cm (${o.distMm.toFixed(1)} mm${o.distStdMm !== null ? ` ±${o.distStdMm.toFixed(1)} mm` : ""})`);
+    lines.push(`  Kamera XYZ (lokal): X=${o.camPosMm[0].toFixed(2)} mm, Y=${o.camPosMm[1].toFixed(2)} mm, Z=${o.camPosMm[2].toFixed(2)} mm`);
+    lines.push(`  Blickvektor n:      (${o.normal.map(v => v.toFixed(5)).join(", ")})`);
+    lines.push(`  Genauigkeit (RMS):  ${o.rms.toFixed(2)} px`);
+  }
+
+  lines.push("");
+  lines.push(`--- 2. RELATIONEN ZWISCHEN MESSWÜRFELN (${s.relations.length}) --------------------------`);
+  lines.push("  (Bezugspunkt je Würfel = Bodenmitte Z=0 / Bohrungszentrum)");
+  if (s.relations.length === 0) {
+    lines.push("  (Nur 1 Messwürfel im Bild — keine paarweisen Abstände/Winkel)");
+  } else {
+    for (const r of s.relations) {
+      lines.push("");
+      lines.push(`[${r.aLabel}  --->  ${r.bLabel}]${r.samples > 1 ? ` (Ø aus ${r.samples} Samples)` : ""}`);
+      lines.push(`  3D-Abstand:             ${r.distMm.toFixed(2)} mm${r.distStdMm !== null ? ` (±${r.distStdMm.toFixed(2)} mm)` : ""} | ${r.distCm.toFixed(2)} cm`);
+      lines.push(`  Versatz B in A (mm):    dX=${fmtSigned(r.deltaInA[0], 2)}, dY=${fmtSigned(r.deltaInA[1], 2)}, dZ=${fmtSigned(r.deltaInA[2], 2)}`);
+      lines.push(`  Richtung A -> B in A:   Azimut=${fmtSigned(r.dirAzimInA, 2)} deg, Elevation=${fmtSigned(r.dirElevInA, 2)} deg`);
+      lines.push(`  Flächenwinkel (+Z/+Z):  ${r.normalAngleDeg.toFixed(2)} deg`);
+      lines.push(`  3D-Gesamtdrehung:       ${r.totalRotDeg.toFixed(2)} deg`);
+      lines.push(`  Rel. Euler (ZYX):       Roll(X)=${fmtSigned(r.euler.rollX, 2)} deg, Pitch(Y)=${fmtSigned(r.euler.pitchY, 2)} deg, Yaw(Z)=${fmtSigned(r.euler.yawZ, 2)} deg`);
+      lines.push(`  Normale von B in A:     (${r.bNormalInA.map(v => v.toFixed(5)).join(", ")})`);
+      lines.push(`  Normale B (Kugel in A): Azimut=${fmtSigned(r.bNormSph.azim, 2)} deg, Elevation=${fmtSigned(r.bNormSph.elev, 2)} deg`);
+    }
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+function downloadReport() {
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    showToast("Erst Marker erfassen!");
+    return;
+  }
+  const text = buildTextReport(lastSnapshot);
+  const d = lastSnapshot.timestamp;
+  const pad = n => String(n).padStart(2, "0");
+  const fname = `messung_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}.txt`;
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`Exportiert: ${fname}`);
+}
+
+async function copyReport() {
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    showToast("Erst Marker erfassen!");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(buildTextReport(lastSnapshot));
+    showToast("Messbericht kopiert!");
+  } catch (_) {
+    downloadReport();
+  }
+}
+
+// --------- Haupt-Loop mit Capture-Zustandsmaschine ---------
+function resetCaptureUI() {
+  capturePhase = "idle";
+  captureSamples = [];
+  captureOverlay.classList.remove("visible");
+  btnCapture.textContent = "⏺ Capture";
+  btnCapture.classList.remove("recording", "active");
+}
+
+function loop(now) {
+  if (!streaming) return;
+
+  try {
+    if (capturePhase !== "captured" && video.readyState >= 2) {
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const isRec = capturePhase === "recording";
+      const interval = 160;
+      let freshSnap = null;
+      if (!lastDetectMs || now - lastDetectMs >= interval) {
+        lastDetectMs = now;
+        freshSnap = analyzeCurrentCanvas(isRec);
+        if (freshSnap) {
+          if (freshSnap.objects.length > 0 || capturePhase === "idle") {
+            lastSnapshot = freshSnap;
+          }
+          updateHUD(freshSnap);
+        }
+      }
+
+      if (capturePhase === "countdown") {
+        const elapsed = now - captureStartMs;
+        const rem = Math.max(0, (CAPTURE_DELAY_MS - elapsed) / 1000);
+        capTitle.textContent = "Ruhig halten…";
+        capSub.textContent = `Messung startet in ${rem.toFixed(1)} s`;
+        capBar.style.background = "var(--amber)";
+        capBar.style.width = `${clamp(elapsed / CAPTURE_DELAY_MS, 0, 1) * 100}%`;
+        if (elapsed >= CAPTURE_DELAY_MS) {
+          capturePhase = "recording";
+          captureStartMs = now;
+          captureSamples = [];
+          lastDetectMs = 0; // sofort ersten Sample nehmen
+        }
+      } else if (capturePhase === "recording") {
+        if (freshSnap && freshSnap.objects.length > 0) {
+          captureSamples.push(freshSnap);
+        }
+        const elapsed = now - captureStartMs;
+        const rem = Math.max(0, (CAPTURE_DURATION_MS - elapsed) / 1000);
+        capTitle.textContent = "Messe Durchschnitt…";
+        capSub.textContent = `Noch ${rem.toFixed(1)} s · ${captureSamples.length} Samples`;
+        capBar.style.background = "var(--green)";
+        capBar.style.width = `${clamp(elapsed / CAPTURE_DURATION_MS, 0, 1) * 100}%`;
+
+        if (elapsed >= CAPTURE_DURATION_MS) {
+          captureOverlay.classList.remove("visible");
+          if (captureSamples.length === 0) {
+            resetCaptureUI();
+            showToast("Keine Marker während der 3 s erkannt");
+          } else {
+            const avgSnap = aggregateCaptureSamples(captureSamples, captureSamples[captureSamples.length - 1]);
+            lastSnapshot = avgSnap;
+            capturePhase = "captured";
+            // Eingefrorenes Schlussbild sauber mit gemitteltem Overlay zeichnen
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            drawOverlay(avgSnap);
+            updateHUD(avgSnap);
+            btnCapture.textContent = "▶ Weiter";
+            btnCapture.classList.remove("recording");
+            btnCapture.classList.add("active");
+            showToast(`Fertig: Ø aus ${avgSnap.totalFrames} Samples`);
+            return;
+          }
+        }
+      }
+
+      drawOverlay(lastSnapshot);
+    }
+  } catch (e) {
+    vMeta.textContent = `Loop-Fehler: ${typeof e === "number" ? "cv#" + e : (e?.message || e)}`;
+  } finally {
+    if (streaming) requestAnimationFrame(loop);
+  }
+}
+
+btnStart.addEventListener("click", async () => {
+  if (streaming) {
+    streaming = false;
+    resetCaptureUI();
+    if (streamRef) streamRef.getTracks().forEach(t => t.stop());
+    streamRef = null;
+    btnStart.textContent = "▶ Kamera";
+    btnStart.classList.remove("active");
+    btnStart.classList.add("primary");
+    btnCapture.disabled = true;
+    statusEl.textContent = "Bereit";
+    statusEl.className = "badge ok";
+    setGuideVisible(true);
+    return;
+  }
+  try {
+    streamRef = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = streamRef;
+    await video.play();
+    streaming = true;
+    setGuideVisible(false);
+    resetCaptureUI();
+    btnStart.textContent = "■ Stop";
+    btnStart.classList.remove("primary");
+    btnStart.classList.add("active");
+    btnCapture.disabled = false;
+    requestAnimationFrame(loop);
+  } catch (err) {
+    statusEl.textContent = "HTTPS nötig";
+    statusEl.className = "badge warn";
+    vMeta.textContent = `Kamera blockiert: ${err.message}`;
+  }
+});
+
+btnCapture.addEventListener("click", () => {
+  if (!streaming) return;
+  if (capturePhase === "idle") {
+    capturePhase = "countdown";
+    captureStartMs = performance.now();
+    captureSamples = [];
+    captureOverlay.classList.add("visible");
+    btnCapture.textContent = "✕ Abbruch";
+    btnCapture.classList.add("recording");
+    statusEl.textContent = "Vorlauf 1s…";
+    statusEl.className = "badge warn";
+  } else {
+    // Abbruch während Countdown/Recording ODER "Weiter" nach Capture
+    resetCaptureUI();
+    lastDetectMs = 0;
+  }
+});
+
+btnExport.addEventListener("click", downloadReport);
+
+// Einstellungen lokal merken
+const CFG_IDS = ["cubeSize", "pivotZ", "focal35"];
+try {
+  const saved = JSON.parse(localStorage.getItem("aruco3d_cfg_v2") || "{}");
+  for (const id of CFG_IDS) {
+    if (id in saved) document.getElementById(id).value = saved[id];
+    document.getElementById(id).addEventListener("change", () => {
+      const obj = {};
+      for (const k of CFG_IDS) obj[k] = document.getElementById(k).value;
+      try { localStorage.setItem("aruco3d_cfg_v2", JSON.stringify(obj)); } catch (_) {}
+    });
+  }
+} catch (_) {}
+
+drawSphereWidget(null, null);
+
+// --------- Animierte 3D-Start-Schematik (Würfel-Ausrichtung & Fase) ---------
+const guideOverlay = document.getElementById("guideOverlay");
+const guideCanvas = document.getElementById("guideCanvas");
+const gCtx = guideCanvas.getContext("2d");
+const btnGuide = document.getElementById("btnGuide");
+const btnCloseGuide = document.getElementById("btnCloseGuide");
+
+let guideVisible = true;
+let guideRaf = null;
+let guideManual = false;
+let guideAz = 30;
+let guideEl = 25;
+let guideDrag = null;
+
+function setGuideVisible(show) {
+  guideVisible = show;
+  guideOverlay.classList.toggle("hidden", !show);
+  btnGuide.classList.toggle("active", show);
+  if (show && !guideRaf) {
+    guideRaf = requestAnimationFrame(renderGuideFrame);
+  }
+}
+
+btnGuide.addEventListener("click", () => setGuideVisible(!guideVisible));
+btnCloseGuide.addEventListener("click", () => setGuideVisible(false));
+
+// Touch/Maus-Drehung der 3D-Schematik
+guideCanvas.addEventListener("pointerdown", e => {
+  guideManual = true;
+  guideDrag = { x: e.clientX, y: e.clientY, az: guideAz, el: guideEl };
+  guideCanvas.setPointerCapture(e.pointerId);
+});
+guideCanvas.addEventListener("pointermove", e => {
+  if (!guideDrag) return;
+  guideAz = guideDrag.az + (e.clientX - guideDrag.x) * 0.65;
+  guideEl = clamp(guideDrag.el + (e.clientY - guideDrag.y) * 0.45, -15, 78);
+});
+const endGuideDrag = () => { guideDrag = null; };
+guideCanvas.addEventListener("pointerup", endGuideDrag);
+guideCanvas.addEventListener("pointercancel", endGuideDrag);
+
+function renderGuideFrame(ts) {
+  if (!guideVisible) { guideRaf = null; return; }
+
+  const tSec = ts * 0.001;
+  if (!guideManual) {
+    // Sanftes Pendeln um die 3/4-Ansicht (Vorne -Y, Rechts +X mit Fase, Oben +Z)
+    guideAz = 28 + Math.sin(tSec * 0.72) * 32;
+    guideEl = 25 + Math.sin(tSec * 0.46 + 0.6) * 8;
+  }
+
+  const W = guideCanvas.width, H = guideCanvas.height;
+  gCtx.clearRect(0, 0, W, H);
+
+  // Kamera im Kugelkoordinaten-System (identisch zur Messkonvention!)
+  const az = deg2rad(guideAz), el = deg2rad(guideEl);
+  const camDist = 7.4;
+  const cx3 = camDist * Math.cos(el) * Math.sin(az);
+  const cy3 = -camDist * Math.cos(el) * Math.cos(az);
+  const cz3 = 1.0 + camDist * Math.sin(el);
+  const target = [0, 0, 0.95];
+
+  // Kamera-Orthonormalbasis (right, up, forward)
+  let fwd = [target[0] - cx3, target[1] - cy3, target[2] - cz3];
+  const fl = Math.hypot(fwd[0], fwd[1], fwd[2]) || 1;
+  fwd = [fwd[0] / fl, fwd[1] / fl, fwd[2] / fl];
+  const worldUp = [0, 0, 1];
+  let right = [
+    fwd[1] * worldUp[2] - fwd[2] * worldUp[1],
+    fwd[2] * worldUp[0] - fwd[0] * worldUp[2],
+    fwd[0] * worldUp[1] - fwd[1] * worldUp[0],
+  ];
+  const rl = Math.hypot(right[0], right[1], right[2]) || 1;
+  right = [right[0] / rl, right[1] / rl, right[2] / rl];
+  const up = [
+    right[1] * fwd[2] - right[2] * fwd[1],
+    right[2] * fwd[0] - right[0] * fwd[2],
+    right[0] * fwd[1] - right[1] * fwd[0],
+  ];
+
+  const focal = 360;
+  const ox = W * 0.46, oy = H * 0.51;
+  function proj(p) {
+    const dx = p[0] - cx3, dy = p[1] - cy3, dz = p[2] - cz3;
+    const x = dx * right[0] + dy * right[1] + dz * right[2];
+    const y = dx * up[0] + dy * up[1] + dz * up[2];
+    const z = dx * fwd[0] + dy * fwd[1] + dz * fwd[2];
+    const sc = focal / Math.max(0.5, z);
+    return [ox + x * sc, oy - y * sc, z];
+  }
+
+  // 1. Bodenebene (Z = 0) & Azimut-Orbitring
+  const ringR = 2.05;
+  gCtx.save();
+  gCtx.strokeStyle = "rgba(56,189,248,0.28)";
+  gCtx.lineWidth = 1.4;
+  gCtx.setLineDash([5, 5]);
+  gCtx.beginPath();
+  for (let i = 0; i <= 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    const pt = proj([ringR * Math.sin(a), -ringR * Math.cos(a), 0]);
+    if (i === 0) gCtx.moveTo(pt[0], pt[1]); else gCtx.lineTo(pt[0], pt[1]);
+  }
+  gCtx.stroke();
+  gCtx.setLineDash([]);
+
+  // Animierter Azimut-Winkelbogen (0° bis ~+50°) & Höhenbogen
+  const animAz = deg2rad(25 + Math.sin(tSec * 1.1) * 20);
+  const animEl = deg2rad(32 + Math.cos(tSec * 1.1) * 14);
+  gCtx.strokeStyle = "rgba(34,197,94,0.8)";
+  gCtx.lineWidth = 2.2;
+  gCtx.beginPath();
+  for (let i = 0; i <= 20; i++) {
+    const a = (i / 20) * animAz;
+    const pt = proj([ringR * Math.sin(a), -ringR * Math.cos(a), 0]);
+    if (i === 0) gCtx.moveTo(pt[0], pt[1]); else gCtx.lineTo(pt[0], pt[1]);
+  }
+  gCtx.stroke();
+
+  // Elevations-Bogen über Bodenebene
+  gCtx.strokeStyle = "rgba(56,189,248,0.85)";
+  gCtx.lineWidth = 2.2;
+  gCtx.beginPath();
+  for (let i = 0; i <= 18; i++) {
+    const e = (i / 18) * animEl;
+    const pt = proj([
+      ringR * Math.cos(e) * Math.sin(animAz),
+      -ringR * Math.cos(e) * Math.cos(animAz),
+      ringR * Math.sin(e),
+    ]);
+    if (i === 0) gCtx.moveTo(pt[0], pt[1]); else gCtx.lineTo(pt[0], pt[1]);
+  }
+  gCtx.stroke();
+  const camDot = proj([
+    ringR * Math.cos(animEl) * Math.sin(animAz),
+    -ringR * Math.cos(animEl) * Math.cos(animAz),
+    ringR * Math.sin(animEl),
+  ]);
+  gCtx.fillStyle = "#38bdf8";
+  gCtx.strokeStyle = "#fff";
+  gCtx.lineWidth = 1.5;
+  gCtx.beginPath(); gCtx.arc(camDot[0], camDot[1], 4.5, 0, Math.PI * 2); gCtx.fill(); gCtx.stroke();
+
+  // Boden-Bohrung (Ø5.7 mm bei Z=0 Mitte) als dezenter gestrichelter Kreis
+  gCtx.strokeStyle = "rgba(148,163,184,0.35)";
+  gCtx.lineWidth = 1.2;
+  gCtx.setLineDash([3, 3]);
+  gCtx.beginPath();
+  for (let i = 0; i <= 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const pt = proj([0.22 * Math.cos(a), 0.22 * Math.sin(a), 0]);
+    if (i === 0) gCtx.moveTo(pt[0], pt[1]); else gCtx.lineTo(pt[0], pt[1]);
+  }
+  gCtx.stroke();
+  gCtx.setLineDash([]);
+  gCtx.restore();
+
+  // 2. Gefaster 3D-Messwürfel ([-1..1, -1..1, 0..2], Fase an +X / Z=0)
+  const ch = 0.25; // visuell klar hervorgehobene 3mm-Fase
+  const pulse = 0.5 + 0.5 * Math.sin(tSec * 4.2);
+  const faces = [
+    {
+      name: "Oben (+Z)", markerIdx: 0, n: [0, 0, 1],
+      u: [1, 0, 0], v: [0, 1, 0], c: [0, 0, 2],
+      pts: [[-1, -1, 2], [1, -1, 2], [1, 1, 2], [-1, 1, 2]],
+      fill: "#f1f5f9",
+    },
+    {
+      name: "Vorne (-Y)", markerIdx: 1, n: [0, -1, 0],
+      u: [1, 0, 0], v: [0, 0, 1], c: [0, -1, 1],
+      pts: [[-1, -1, 0], [1 - ch, -1, 0], [1, -1, ch], [1, -1, 2], [-1, -1, 2]],
+      fill: "#e2e8f0",
+    },
+    {
+      name: "Rechts (+X)", markerIdx: 2, n: [1, 0, 0],
+      u: [0, 1, 0], v: [0, 0, 1], c: [1, 0, 1],
+      pts: [[1, -1, ch], [1, 1, ch], [1, 1, 2], [1, -1, 2]],
+      fill: "#cbd5e1",
+    },
+    {
+      name: "Hinten (+Y)", markerIdx: 3, n: [0, 1, 0],
+      u: [-1, 0, 0], v: [0, 0, 1], c: [0, 1, 1],
+      pts: [[1 - ch, 1, 0], [-1, 1, 0], [-1, 1, 2], [1, 1, 2], [1, 1, ch]],
+      fill: "#cbd5e1",
+    },
+    {
+      name: "Links (-X)", markerIdx: 4, n: [-1, 0, 0],
+      u: [0, -1, 0], v: [0, 0, 1], c: [-1, 0, 1],
+      pts: [[-1, 1, 0], [-1, -1, 0], [-1, -1, 2], [-1, 1, 2]],
+      fill: "#94a3b8",
+    },
+    {
+      name: "Boden (Z=0)", markerIdx: -1, n: [0, 0, -1],
+      pts: [[-1, 1, 0], [1 - ch, 1, 0], [1 - ch, -1, 0], [-1, -1, 0]],
+      fill: "#64748b",
+    },
+    {
+      name: "Fase", markerIdx: -1, isChamfer: true, n: [0.707, 0, -0.707],
+      pts: [[1 - ch, -1, 0], [1 - ch, 1, 0], [1, 1, ch], [1, -1, ch]],
+      fill: `rgba(245, 158, 11, ${0.78 + pulse * 0.22})`,
+    },
+  ];
+
+  // Sichtbare Flächen bestimmen & nach Tiefe sortieren
+  const visibleFaces = [];
+  for (const f of faces) {
+    const p2 = f.pts.map(proj);
+    // Flächen-Mittelpunkt zur Kamera prüfen
+    const mid = [0, 0, 0];
+    for (const p of f.pts) { mid[0] += p[0]; mid[1] += p[1]; mid[2] += p[2]; }
+    mid[0] /= f.pts.length; mid[1] /= f.pts.length; mid[2] /= f.pts.length;
+    const toCam = [cx3 - mid[0], cy3 - mid[1], cz3 - mid[2]];
+    const dot = f.n[0] * toCam[0] + f.n[1] * toCam[1] + f.n[2] * toCam[2];
+    if (dot > -0.05 || f.isChamfer) {
+      const avgZ = p2.reduce((s, v) => s + v[2], 0) / p2.length;
+      visibleFaces.push({ f, p2, avgZ, front: dot > 0 });
+    }
+  }
+  visibleFaces.sort((a, b) => b.avgZ - a.avgZ);
+
+  for (const { f, p2, front } of visibleFaces) {
+    if (!front && !f.isChamfer) continue;
+    gCtx.beginPath();
+    p2.forEach((pt, idx) => idx === 0 ? gCtx.moveTo(pt[0], pt[1]) : gCtx.lineTo(pt[0], pt[1]));
+    gCtx.closePath();
+    gCtx.fillStyle = f.fill;
+    gCtx.fill();
+    gCtx.strokeStyle = f.isChamfer ? "#fef08a" : "#334155";
+    gCtx.lineWidth = f.isChamfer ? 2.2 : 1.4;
+    gCtx.stroke();
+
+    // Echten ArUco-Marker (Marker 1: ID 0..4) auf jede sichtbare Würfelfläche projizieren
+    if (f.markerIdx >= 0) {
+      const mask = DICT_4X4_15[f.markerIdx];
+      const ms = 0.72; // 75% Verhältnis
+      const cell = (ms * 2) / 6;
+      const drawCell = (r, c) => {
+        const u0 = -ms + c * cell, u1 = u0 + cell;
+        const v1 = ms - r * cell, v0 = v1 - cell;
+        const quad = [
+          [u0, v1], [u1, v1], [u1, v0], [u0, v0]
+        ].map(([uu, vv]) => proj([
+          f.c[0] + f.u[0] * uu + f.v[0] * vv,
+          f.c[1] + f.u[1] * uu + f.v[1] * vv,
+          f.c[2] + f.u[2] * uu + f.v[2] * vv,
+        ]));
+        gCtx.beginPath();
+        quad.forEach((pt, idx) => idx === 0 ? gCtx.moveTo(pt[0], pt[1]) : gCtx.lineTo(pt[0], pt[1]));
+        gCtx.closePath();
+        gCtx.fill();
+      };
+      gCtx.fillStyle = "#111827";
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          const isBorder = r === 0 || r === 5 || c === 0 || c === 5;
+          const isBit = !isBorder && (((mask >> (15 - ((r - 1) * 4 + (c - 1)))) & 1) === 1);
+          if (isBorder || isBit) drawCell(r, c);
+        }
+      }
+    }
+  }
+
+  // 3. 3D-Koordinatenachsen (+X Rot, -Y/+Y Grün, +Z Blau) vom Ursprung (Bodenmitte Z=0)
+  function drawArrow3D(from, to, color, label, dashed = false) {
+    const a = proj(from), b = proj(to);
+    gCtx.save();
+    gCtx.strokeStyle = color;
+    gCtx.lineWidth = dashed ? 1.8 : 2.8;
+    if (dashed) gCtx.setLineDash([4, 4]);
+    gCtx.beginPath(); gCtx.moveTo(a[0], a[1]); gCtx.lineTo(b[0], b[1]); gCtx.stroke();
+    gCtx.setLineDash([]);
+    // Pfeilspitze
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    gCtx.fillStyle = color;
+    gCtx.beginPath();
+    gCtx.moveTo(b[0], b[1]);
+    gCtx.lineTo(b[0] - 9 * Math.cos(ang - 0.42), b[1] - 9 * Math.sin(ang - 0.42));
+    gCtx.lineTo(b[0] - 9 * Math.cos(ang + 0.42), b[1] - 9 * Math.sin(ang + 0.42));
+    gCtx.closePath();
+    gCtx.fill();
+    // Label
+    gCtx.font = "700 12px -apple-system, system-ui, sans-serif";
+    gCtx.textAlign = "center";
+    gCtx.textBaseline = "middle";
+    const lx = b[0] + Math.cos(ang) * 16;
+    const ly = b[1] + Math.sin(ang) * 14;
+    gCtx.fillStyle = "rgba(9,13,22,0.82)";
+    const tw = gCtx.measureText(label).width + 8;
+    gCtx.fillRect(lx - tw / 2, ly - 9, tw, 18);
+    gCtx.fillStyle = color;
+    gCtx.fillText(label, lx, ly);
+    gCtx.restore();
+  }
+
+  drawArrow3D([1.0, 0, 0.08], [2.05, 0, 0.08], "#ef4444", "+X Rechts");
+  drawArrow3D([0, -1.0, 0.02], [0, -2.05, 0.02], "#22c55e", "-Y Vorne (0°)");
+  drawArrow3D([0, 1.0, 0.02], [0, 1.9, 0.02], "rgba(134,239,172,0.65)", "+Y", true);
+  drawArrow3D([0, 0, 2.0], [0, 0, 2.78], "#60a5fa", "+Z Oben");
+
+  // 4. Pulsierender Callout direkt auf die 3mm-Fase unten rechts (+X / Z=0)
+  const chPt = proj([1 - ch * 0.45, -0.55, ch * 0.45]);
+  const bx = Math.min(W - 82, Math.max(82, chPt[0] + 95));
+  const by = Math.min(H - 20, Math.max(24, chPt[1] + 24));
+  gCtx.save();
+  gCtx.strokeStyle = "#f59e0b";
+  gCtx.lineWidth = 1.8;
+  gCtx.beginPath(); gCtx.moveTo(chPt[0], chPt[1]); gCtx.lineTo(bx - 56, by); gCtx.stroke();
+  gCtx.fillStyle = "#f59e0b";
+  gCtx.beginPath(); gCtx.arc(chPt[0], chPt[1], 3.8 + pulse * 1.6, 0, Math.PI * 2); gCtx.fill();
+
+  const tag = "Fase · Unten Rechts";
+  gCtx.font = "700 11px -apple-system, system-ui, sans-serif";
+  const tw = gCtx.measureText(tag).width + 14;
+  gCtx.fillStyle = "rgba(15,23,42,0.92)";
+  gCtx.strokeStyle = "#f59e0b";
+  gCtx.lineWidth = 1.4;
+  gCtx.fillRect(bx - tw / 2, by - 11, tw, 22);
+  gCtx.strokeRect(bx - tw / 2, by - 11, tw, 22);
+  gCtx.fillStyle = "#fde68a";
+  gCtx.textAlign = "center";
+  gCtx.textBaseline = "middle";
+  gCtx.fillText(tag, bx, by);
+  gCtx.restore();
+
+  guideRaf = requestAnimationFrame(renderGuideFrame);
+}
+
+setGuideVisible(true);
+
+window.Module = {
+  onRuntimeInitialized() {
+    cvReady = true;
+    statusEl.textContent = "Bereit";
+    statusEl.className = "badge ok";
+    btnStart.disabled = false;
+  }
+};
+</script>
+<script async src="https://docs.opencv.org/4.10.0/opencv.js"></script>
+</body>
+</html>
