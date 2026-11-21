@@ -83,18 +83,18 @@
     padding: 8px 10px;
     box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.12);
   }
-  .hud-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+  .hud-top { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-width: 0; }
   .hud-title {
     font-family: var(--mono);
-    font-size: clamp(11px, 3.1vw, 13px); font-weight: 700;
+    font-size: clamp(10.5px, 2.8vw, 12.5px); font-weight: 700;
     letter-spacing: 0.04em; text-transform: uppercase;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .hud-actions { display: flex; align-items: center; gap: 5px; flex: none; }
+  .hud-actions { display: flex; align-items: center; gap: 4px; flex: none; }
   .badge {
-    padding: 2px 7px; border-radius: 5px;
+    padding: 2px 6px; border-radius: 5px;
     font-family: var(--mono);
-    font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em;
     background: rgba(148,163,184,0.12); border: 1px solid var(--border-subtle); color: var(--text);
     white-space: nowrap;
   }
@@ -103,13 +103,19 @@
   .badge.multi { background: rgba(56,189,248,0.18); border-color: rgba(56,189,248,0.48); color: #7dd3fc; }
   .badge.rec { background: rgba(239,68,68,0.22); border-color: rgba(239,68,68,0.55); color: #fca5a5; }
   .icon-btn {
-    width: 30px; height: 30px; border-radius: 7px;
+    width: 28px; height: 28px; border-radius: 7px;
     border: 1px solid var(--border); background: rgba(9,13,22,0.42);
-    color: var(--text); font-size: 14px;
+    color: var(--text); font-size: 13.5px;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; padding: 0; flex: none;
   }
   .icon-btn.active { background: rgba(56,189,248,0.20); border-color: var(--border-hi); color: #bae6fd; }
+  .icon-btn.torch-on {
+    background: rgba(245,158,11,0.28);
+    border-color: rgba(245,158,11,0.78);
+    color: #fde68a;
+    box-shadow: 0 0 10px rgba(245,158,11,0.28);
+  }
 
   #targetChips {
     display: none; gap: 6px; margin-top: 7px;
@@ -639,6 +645,9 @@
       <span class="hud-title">3D Space Measuring</span>
       <div class="hud-actions">
         <span id="status" class="badge warn">Lade OpenCV…</span>
+        <button id="btnTorch" class="icon-btn" title="LED einschalten" aria-pressed="false" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 10-12h-7l0-8z"/></svg>
+        </button>
         <button id="btnStopCam" class="icon-btn" title="Kamera stoppen" style="display:none;color:#fca5a5;">■</button>
         <button id="btnGuide" class="icon-btn active" title="Würfel-Ausrichtung anzeigen">?</button>
         <button id="btnToggleWidgets" class="icon-btn active" title="Widgets ein/aus">◎</button>
@@ -978,6 +987,7 @@ const capBar = document.getElementById("capBar");
 const btnStartGuide = document.getElementById("btnStartGuide");
 const btnStartCenter = document.getElementById("btnStartCenter");
 const startCenterWrap = document.getElementById("startCenterWrap");
+const btnTorch = document.getElementById("btnTorch");
 const btnStopCam = document.getElementById("btnStopCam");
 const btnCapture = document.getElementById("btnCapture");
 const btnView3D = document.getElementById("btnView3D");
@@ -2412,11 +2422,56 @@ function loop(now) {
   }
 }
 
+let torchOn = false;
+
+function updateTorchUI() {
+  btnTorch.style.display = streaming ? "inline-flex" : "none";
+  btnTorch.classList.toggle("torch-on", torchOn);
+  btnTorch.setAttribute("aria-pressed", String(torchOn));
+  btnTorch.title = torchOn ? "LED ausschalten" : "LED einschalten";
+}
+
+async function setTorch(enable) {
+  const track = streamRef?.getVideoTracks?.()[0];
+  if (!track || typeof track.applyConstraints !== "function") {
+    torchOn = false;
+    updateTorchUI();
+    if (enable) showToast("LED wird von diesem Browser nicht unterstützt");
+    return false;
+  }
+  const caps = typeof track.getCapabilities === "function" ? track.getCapabilities() : null;
+  if (caps && "torch" in caps && !caps.torch) {
+    torchOn = false;
+    updateTorchUI();
+    if (enable) showToast("LED auf dieser Kameralinse nicht verfügbar");
+    return false;
+  }
+  try {
+    await track.applyConstraints({ advanced: [{ torch: enable }] });
+    torchOn = enable;
+    updateTorchUI();
+    return true;
+  } catch (_) {
+    try {
+      await track.applyConstraints({ torch: enable });
+      torchOn = enable;
+      updateTorchUI();
+      return true;
+    } catch (_) {
+      torchOn = false;
+      updateTorchUI();
+      if (enable) showToast("LED nicht unterstützt (iOS 17+ / Safari)");
+      return false;
+    }
+  }
+}
+
 function updateStartButtonsUI() {
   const showCenter = !streaming && !guideVisible;
   startCenterWrap.classList.toggle("visible", showCenter);
   btnStartGuide.style.display = streaming ? "none" : "flex";
   btnStopCam.style.display = streaming ? "inline-flex" : "none";
+  updateTorchUI();
 }
 
 async function startCamera() {
@@ -2434,6 +2489,7 @@ async function startCamera() {
     video.srcObject = streamRef;
     await video.play();
     streaming = true;
+    torchOn = false;
     lastDetectMs = 0;
     setGuideVisible(false);
     resetCaptureUI();
@@ -2452,6 +2508,13 @@ function stopCamera() {
   streaming = false;
   cancelLoopTimers();
   resetCaptureUI();
+  if (torchOn) {
+    const track = streamRef?.getVideoTracks?.()[0];
+    if (track && typeof track.applyConstraints === "function") {
+      try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch (_) {}
+    }
+    torchOn = false;
+  }
   if (streamRef) streamRef.getTracks().forEach(t => t.stop());
   streamRef = null;
   video.srcObject = null;
@@ -2465,6 +2528,16 @@ function stopCamera() {
 btnStartGuide.addEventListener("click", startCamera);
 btnStartCenter.addEventListener("click", startCamera);
 btnStopCam.addEventListener("click", stopCamera);
+btnTorch.addEventListener("click", () => {
+  if (!streaming) return;
+  setTorch(!torchOn);
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && streaming && capturePhase === "idle") {
+    lastDetectMs = 0;
+    scheduleNextLoop(0);
+  }
+});
 
 btnCapture.addEventListener("click", () => {
   if (!streaming) return;
@@ -2488,15 +2561,17 @@ btnCapture.addEventListener("click", () => {
 
 // Einstellungen lokal merken
 const CFG_IDS = ["cubeSize", "pivotZ", "focal35"];
+const CFG_STORAGE_KEY = "space3d_cfg_v1";
+function saveCfgToStorage() {
+  const obj = {};
+  for (const k of CFG_IDS) obj[k] = document.getElementById(k).value;
+  try { localStorage.setItem(CFG_STORAGE_KEY, JSON.stringify(obj)); } catch (_) {}
+}
 try {
-  const saved = JSON.parse(localStorage.getItem("aruco3d_cfg_v2") || "{}");
+  const saved = JSON.parse(localStorage.getItem(CFG_STORAGE_KEY) || "{}");
   for (const id of CFG_IDS) {
     if (id in saved) document.getElementById(id).value = saved[id];
-    document.getElementById(id).addEventListener("change", () => {
-      const obj = {};
-      for (const k of CFG_IDS) obj[k] = document.getElementById(k).value;
-      try { localStorage.setItem("aruco3d_cfg_v2", JSON.stringify(obj)); } catch (_) {}
-    });
+    document.getElementById(id).addEventListener("change", saveCfgToStorage);
   }
 } catch (_) {}
 
@@ -2741,7 +2816,7 @@ function renderGuideFrame(ts) {
     gCtx.lineWidth = f.isChamfer ? 2.2 : 1.4;
     gCtx.stroke();
 
-    // Echten ArUco-Marker (Marker 1: ID 0..4) auf jede sichtbare Würfelfläche projizieren
+    // Echten 4×4-Marker (Marker 1: ID 0..4) auf jede sichtbare Würfelfläche projizieren
     if (f.markerIdx >= 0) {
       const mask = DICT_4X4_15[f.markerIdx];
       const ms = 0.72; // 75% Verhältnis
@@ -3520,12 +3595,6 @@ const calTargetEl = document.getElementById("calTargetMm");
 const btnCalibrate = document.getElementById("btnCalibrate");
 const btnCalReset = document.getElementById("btnCalReset");
 
-function saveCfgToStorage() {
-  const obj = {};
-  for (const k of CFG_IDS) obj[k] = document.getElementById(k).value;
-  try { localStorage.setItem("aruco3d_cfg_v2", JSON.stringify(obj)); } catch (_) {}
-}
-
 function getCalibratedDistMm(o, cubeSize) {
   // Abstand Kamera <-> exakte Würfelmitte (0, 0, cubeSize/2)
   const h = cubeSize / 2.0;
@@ -3542,7 +3611,10 @@ function updateCalInfo() {
   const cs = lastSnapshot.config?.cubeSize || 48.0;
   const dMm = getCalibratedDistMm(o, cs);
   const modeTxt = lastSnapshot.isCapture ? "Capture Ø" : "Live";
-  calInfoEl.textContent = `Gemessen (${modeTxt}, ${o.label}): ${dMm.toFixed(1)} mm (${(dMm / 10).toFixed(1)} cm) bei f=${lastSnapshot.config.focal35} mm`;
+  const snapF = lastSnapshot.config.focal35;
+  const curF = parseFloat(document.getElementById("focal35").value);
+  const activeTxt = Number.isFinite(curF) && Math.abs(curF - snapF) > 0.05 ? ` → aktiv: f=${curF.toFixed(1)} mm` : "";
+  calInfoEl.textContent = `Gemessen (${modeTxt}, ${o.label}): ${dMm.toFixed(1)} mm (${(dMm / 10).toFixed(1)} cm) bei f=${snapF} mm${activeTxt}`;
 }
 
 if (btnCalibrate) {
