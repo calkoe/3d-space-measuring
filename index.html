@@ -701,10 +701,10 @@
 <div id="guideOverlay">
   <div class="guide-card">
     <div class="guide-head">
-      <h3>3D Space Measuring <span class="guide-pill">Z-up · Offline</span></h3>
+      <h3>3D Space Measuring <span class="guide-pill">Z-Oben · Offline</span></h3>
       <button id="btnCloseGuide" class="icon-btn" title="Ausblenden">✕</button>
     </div>
-    <p class="guide-intro">Misst per Smartphone-Kamera <strong>3D-Blickwinkel</strong> (Azimut &amp; Elevation), <strong>Abstände</strong>, <strong>Flächenwinkel</strong> und <strong>3-Punkt-Bauwinkel</strong> mit 3D-gedruckten Messwürfeln — 100 % lokal im Browser.</p>
+    <p class="guide-intro">Misst per Smartphone-Kamera <strong>3D-Blickwinkel</strong> (Azimut &amp; Elevation), <strong>Abstände</strong>, <strong>Flächenwinkel</strong> und <strong>3-Punkt-Winkel</strong> mit 3D-gedruckten Messwürfeln — 100 % lokal im Browser.</p>
     <canvas id="guideCanvas" width="460" height="250"></canvas>
     <div class="guide-legend">
       <div class="guide-row" style="border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.09);">
@@ -781,7 +781,7 @@
     </div>
   </div>
 
-  <div class="sec-title">3D-Messwürfel (48 mm · 2-Farb · Bambu-ready 3MF)</div>
+  <div class="sec-title">3D-Messwürfel (48 mm · 2-Farb · 3MF)</div>
   <div class="dl-row" style="border-color:rgba(56,189,248,0.45);background:rgba(56,189,248,0.08);">
     <div><strong>Alle 3 Würfel (1 Platte)</strong><br><span class="mono">Marker 1–3 · 2 Farben (AMS)</span></div>
     <div class="dl-links">
@@ -851,8 +851,8 @@
       <span class="v3d-bar-lbl">Sicht</span>
       <button class="v3d-pill active" data-preset="iso">Iso</button>
       <button class="v3d-pill" data-preset="cam">📷</button>
-      <button class="v3d-pill" data-preset="top">Top</button>
-      <button class="v3d-pill" data-preset="front">Front</button>
+      <button class="v3d-pill" data-preset="top">Oben</button>
+      <button class="v3d-pill" data-preset="front">Vorne</button>
       <button class="v3d-pill" data-preset="right">Seite</button>
       <span class="v3d-sep"></span>
       <button id="btn3dDeltas" class="v3d-pill active">Δ</button>
@@ -1601,7 +1601,7 @@ function computeRelations(objects, cubeSize = 48.0) {
   return rels;
 }
 
-// --------- 3-Punkt-Dreieck / Bauwinkel (rein aus den 3 Würfelmittelpunkten, unabhängig von Würfeldrehung!) ---------
+// --------- 3-Punkt-Winkel / Dreieck (rein aus den 3 Würfelmittelpunkten, unabhängig von Würfeldrehung!) ---------
 function computeTriangleFromSnapshot(s) {
   if (!s || !s.objects || s.objects.length < 3) return null;
   const h = (s.config?.cubeSize || 48.0) / 2.0;
@@ -1984,7 +1984,7 @@ function renderDetailsDrawer() {
   const tri = computeTriangleFromSnapshot(s);
   if (tri) {
     const b90 = angleCheckBadge(tri.best90.angleDeg);
-    html += `<div class="sec-title">📐 3-Punkt-Dreieck / Bauwinkel (Mittelpunkte)</div>
+    html += `<div class="sec-title">📐 3-Punkt-Winkel (Mittelpunkte)</div>
       <div class="detail-card" style="border-color:rgba(192,132,252,0.45);">
         <strong>Innenwinkel (unabhängig von Würfeldrehung):</strong><br>
         ${tri.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(2)}°</strong>`).join(" · ")}<br>
@@ -2137,7 +2137,7 @@ function buildTextReport(s) {
   const triTxt = computeTriangleFromSnapshot(s);
   if (triTxt) {
     lines.push("");
-    lines.push("--- 3. 3-PUNKT-DREIECK / BAUWINKEL (MITTELPUNKTE, ORIENTIERUNGSUNABHÄNGIG) ---");
+    lines.push("--- 3. 3-PUNKT-WINKEL / DREIECK (MITTELPUNKTE, ORIENTIERUNGSUNABHÄNGIG) ---");
     for (const c of triTxt.corners) {
       lines.push(`  Innenwinkel an ${c.label}: ${c.angleDeg.toFixed(2)} deg  (Abweichung zu 90°: ${fmtSigned(c.angleDeg - 90, 2)} deg)`);
     }
@@ -3052,7 +3052,7 @@ function renderView3DCards(scene) {
   if (triangle) {
     const b90 = angleCheckBadge(triangle.best90.angleDeg);
     v3dCards.innerHTML = `<div class="v3d-card" style="border-color:rgba(192,132,252,0.55);background:rgba(168,85,247,0.12);padding:6px 10px;margin-bottom:6px;">
-      <strong>📐 3-Punkt-Bauwinkel</strong>
+      <strong>📐 3-Punkt-Winkel</strong>
       <span class="${b90.cls}">${b90.text}</span><br>
       ${triangle.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(1)}°</strong>`).join(" · ")}
     </div>`;
@@ -3319,7 +3319,7 @@ function renderView3D() {
     }
   }
 
-  // 3b. 3-Punkt-Dreieck / Bauwinkel (Mittelpunkte, unabhängig von Würfeldrehung!)
+  // 3b. 3-Punkt-Winkel / Dreieck (Mittelpunkte, unabhängig von Würfeldrehung!)
   if (triangle) {
     const tPts = triangle.corners.map(c => proj(c.pt));
     if (tPts.every(Boolean)) {

@@ -15,7 +15,7 @@ Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS S
 - **Zeitgesteuertes 3s-Capture mit Ausreißer-Filterung:** 1 s Vorlauf (Hand beruhigen) → 3 s Aufzeichnung mit Multi-Flächen-Bevorzugung, MAD-Ausreißer-Filter, zirkulärem Mittelwert (`±σ`) und anschließendem Standbild.
 - **Interaktive 3D-Raumansicht (`🧊 3D`):** Zeigt nach dem Capture (oder live) alle 1–3 Messwürfel maßstabsgetreu samt **3D-Kameraposition & Blickwinkeln** im Raum (frei dreh- & zoombar), mit:
   - **Umschaltbaren Flächenwinkeln (`XY (+Z)`, `XZ (-Y)`, `YZ (+X)`)** inkl. visualisierter Bezugsebenen je Würfel
-  - **3-Punkt-Dreieck / Bauwinkel (bei 3 Würfeln):** Bildet rein aus den 3 Würfelmittelpunkten ein 3D-Dreieck und zeigt alle 3 Innenwinkel (unabhängig von der Drehung der einzelnen Würfel!) mit automatischem **90°-Check**
+  - **3-Punkt-Winkel / Dreieck (bei 3 Würfeln):** Bildet rein aus den 3 Würfelmittelpunkten ein 3D-Dreieck und zeigt alle 3 Innenwinkel (unabhängig von der Drehung der einzelnen Würfel!) mit automatischem **90°-Check**
   - **Direkten 3D-Abständen** (Mittelpunkt ↔ Mittelpunkt) & schaltbarer `ΔX/ΔY/ΔZ`-Projektion
 - **Export als `.txt` & maschinenlesbares `.yaml`:** Strukturierter Text-Bericht sowie vollständiger **YAML-Export** (inkl. Kugelkoordinaten, paarweisen Relationen, `XY/XZ/YZ`-Flächenwinkeln und 3-Punkt-Dreieck) + Zwischenablage.
 - **Frei skalierbare Würfelgröße:** Die 48-mm-Würfel lassen sich im Slicer beliebig gleichmäßig skalieren (z. B. 30 mm, 36 mm, 60 mm) — die neue Kantenlänge wird einfach in den Einstellungen (`⚙`) eingetragen (das Marker-Verhältnis von exakt `75 %` bleibt dabei erhalten).

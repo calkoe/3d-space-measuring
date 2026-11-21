@@ -1,7 +1,7 @@
 {
   "name": "3D Space Measuring",
   "short_name": "3D Measuring",
-  "description": "Mobiles 3D-Messwerkzeug mit 3D-gedruckten Messwürfeln für Kugelkoordinaten, Multi-Marker-Abstände, 3-Punkt-Bauwinkel und interaktive 3D-Raumansicht — 100 % lokal und offline-fähig.",
+  "description": "Mobiles 3D-Messwerkzeug mit 3D-gedruckten Messwürfeln für Kugelkoordinaten, Multi-Marker-Abstände, 3-Punkt-Winkel und interaktive 3D-Raumansicht — 100 % lokal und offline-fähig.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
