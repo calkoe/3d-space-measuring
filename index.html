@@ -1319,7 +1319,7 @@ function detectMarkersJS(gray, highRes = false) {
     const minArea = Math.max(180, (gray.rows * gray.cols) * 0.0005);
     const maxArea = (gray.rows * gray.cols) * 0.65;
     let quadChecks = 0;
-    const maxQuads = highRes ? 120 : 55;
+    const maxQuads = highRes ? 120 : 80;
 
     for (let i = 0; i < contours.size() && quadChecks < maxQuads; i++) {
       const cnt = contours.get(i);
@@ -1987,8 +1987,8 @@ function analyzeCurrentCanvas(highRes = false) {
     canvas.width = cw; canvas.height = ch;
   }
 
-  // Eco-Vorschau: 480 px (sehr wenig CPU/Akku); 3s-Capture: 960 px + Subpixel-Ecken (volle Präzision)
-  const maxW = highRes ? 960 : 480;
+  // Vorschau: 640 px @ 10 Hz (flüssig & scharf, ohne 60-FPS-Video-Kopie); 3s-Capture: 960 px + Subpixel-Ecken
+  const maxW = highRes ? 960 : 640;
   const scale = Math.min(1, maxW / Math.max(cw, ch));
   const ww = Math.round(cw * scale), wh = Math.round(ch * scale);
   if (workCanvas.width !== ww || workCanvas.height !== wh) {
@@ -2332,8 +2332,8 @@ function loop(now) {
       }
 
       const isRec = capturePhase === "recording";
-      // Vorschau: ~2,8 Hz (spart Akku & Hitze); 3s-Capture: ~9 Hz bei 960 px + Subpixel
-      const interval = isRec ? 110 : 350;
+      // Vorschau: 10 Hz (640 px); 3s-Capture: ~10 Hz (960 px + Subpixel)
+      const interval = isRec ? 100 : 95;
       let freshSnap = null;
       if (!lastDetectMs || now - lastDetectMs >= interval) {
         lastDetectMs = now;
@@ -2405,7 +2405,8 @@ function loop(now) {
       } else if (video.readyState < 2) {
         scheduleNextLoop(120);
       } else {
-        scheduleNextLoop(350);
+        const waitMs = Math.max(16, 100 - (performance.now() - lastDetectMs));
+        scheduleNextLoop(waitMs);
       }
     }
   }
