@@ -702,7 +702,8 @@
     </div>
     <div class="v3d-bar-row">
       <span class="v3d-bar-lbl">Flächenwinkel</span>
-      <button class="v3d-pill plane active" data-plane="xy">XY (+Z)</button>
+      <button class="v3d-pill plane active" data-plane="none">Aus</button>
+      <button class="v3d-pill plane" data-plane="xy">XY (+Z)</button>
       <button class="v3d-pill plane" data-plane="xz">XZ (-Y)</button>
       <button class="v3d-pill plane" data-plane="yz">YZ (+X)</button>
     </div>
@@ -2548,7 +2549,7 @@ let v3dEl = 28;
 let v3dZoom = 1.0;
 let v3dShowDeltas = true;
 let v3dShowCam = true;
-let v3dRefPlane = "xy"; // "xy" (+Z) | "xz" (-Y) | "yz" (+X)
+let v3dRefPlane = "none"; // "none" | "xy" (+Z) | "xz" (-Y) | "yz" (+X)
 let v3dPointers = new Map();
 let v3dPinchStart = null;
 let v3dDragStart = null;
@@ -2669,7 +2670,8 @@ function renderView3D() {
   v3dCtx.clearRect(0, 0, W, H);
 
   const { cubeSize, cubes, pairs, triangle, camPos, center, span, gridStep } = v3dScene;
-  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster: ${gridStep} mm · Ebene: ${v3dRefPlane.toUpperCase()}`;
+  const planeInfo = v3dRefPlane === "none" ? "" : ` · Ebene: ${v3dRefPlane.toUpperCase()}`;
+  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster: ${gridStep} mm${planeInfo}`;
 
   // Orbit-Kamera um Szenen-Zentrum
   const az = deg2rad(v3dAz), el = deg2rad(v3dEl);
@@ -2743,31 +2745,33 @@ function renderView3D() {
   const drawList = [];
 
   for (const c of cubes) {
-    // Transluzente Bezugsebene je Würfel entsprechend gewählter Flächenwinkel-Ebene (XY / XZ / YZ)
-    let refQuadLocal;
-    if (v3dRefPlane === "xz") {
-      refQuadLocal = [
-        [-planeHalf, -h, h - planeHalf], [planeHalf, -h, h - planeHalf],
-        [planeHalf, -h, h + planeHalf], [-planeHalf, -h, h + planeHalf],
-      ];
-    } else if (v3dRefPlane === "yz") {
-      refQuadLocal = [
-        [h, -planeHalf, h - planeHalf], [h, planeHalf, h - planeHalf],
-        [h, planeHalf, h + planeHalf], [h, -planeHalf, h + planeHalf],
-      ];
-    } else {
-      refQuadLocal = [
-        [-planeHalf, -planeHalf, 0], [planeHalf, -planeHalf, 0],
-        [planeHalf, planeHalf, 0], [-planeHalf, planeHalf, 0],
-      ];
-    }
-    const baseQuad = refQuadLocal.map(p => toWorld(c, p));
-    const bp2 = baseQuad.map(proj);
-    if (bp2.every(Boolean)) {
-      const avgZ = bp2.reduce((s, v) => s + v[2], 0) / 4;
-      drawList.push({
-        type: "plane", avgZ: avgZ + 4, p2: bp2, color: c.obj.color,
-      });
+    // Transluzente Bezugsebene je Würfel (nur wenn Flächenwinkel XY / XZ / YZ aktiv)
+    if (v3dRefPlane !== "none") {
+      let refQuadLocal;
+      if (v3dRefPlane === "xz") {
+        refQuadLocal = [
+          [-planeHalf, -h, h - planeHalf], [planeHalf, -h, h - planeHalf],
+          [planeHalf, -h, h + planeHalf], [-planeHalf, -h, h + planeHalf],
+        ];
+      } else if (v3dRefPlane === "yz") {
+        refQuadLocal = [
+          [h, -planeHalf, h - planeHalf], [h, planeHalf, h - planeHalf],
+          [h, planeHalf, h + planeHalf], [h, -planeHalf, h + planeHalf],
+        ];
+      } else {
+        refQuadLocal = [
+          [-planeHalf, -planeHalf, 0], [planeHalf, -planeHalf, 0],
+          [planeHalf, planeHalf, 0], [-planeHalf, planeHalf, 0],
+        ];
+      }
+      const baseQuad = refQuadLocal.map(p => toWorld(c, p));
+      const bp2 = baseQuad.map(proj);
+      if (bp2.every(Boolean)) {
+        const avgZ = bp2.reduce((s, v) => s + v[2], 0) / 4;
+        drawList.push({
+          type: "plane", avgZ: avgZ + 4, p2: bp2, color: c.obj.color,
+        });
+      }
     }
 
     const localFaces = [
@@ -2972,10 +2976,11 @@ function renderView3D() {
     }
   }
 
-  // 4. Paarweise Abstände (immer exakt Würfelmittelpunkt <-> Würfelmittelpunkt), ΔX/ΔY/ΔZ & Flächenwinkel-Pillen
+  // 4. Paarweise Abstände (immer exakt Würfelmittelpunkt <-> Würfelmittelpunkt), ΔX/ΔY/ΔZ & optionale Flächenwinkel-Pillen
   for (const { rel: r, a, b } of pairs) {
-    const pa = planeAngleForRel(r, v3dRefPlane);
-    const badge = angleCheckBadge(pa.deg);
+    const showPlane = v3dRefPlane !== "none";
+    const pa = showPlane ? planeAngleForRel(r, v3dRefPlane) : null;
+    const badge = showPlane ? angleCheckBadge(pa.deg) : null;
     const pA = a.center3D, pB = b.center3D;
     if (v3dShowDeltas) {
       const pX = [pB[0], pA[1], pA[2]];
@@ -2996,13 +3001,15 @@ function renderView3D() {
       const mid3 = [(pA[0] + pB[0]) / 2, (pA[1] + pB[1]) / 2, (pA[2] + pB[2]) / 2];
       const mp = proj(mid3);
       if (mp) {
-        const isGood = badge.cls === "v3d-badge-ok";
-        const label = `${r.distMm.toFixed(1)} mm · ${v3dRefPlane.toUpperCase()} ${pa.deg.toFixed(1)}° (${badge.short})`;
+        const isGood = badge ? badge.cls === "v3d-badge-ok" : false;
+        const label = showPlane
+          ? `${r.distMm.toFixed(1)} mm · ${v3dRefPlane.toUpperCase()} ${pa.deg.toFixed(1)}° (${badge.short})`
+          : `${r.distMm.toFixed(1)} mm`;
         v3dCtx.save();
         v3dCtx.font = "700 11px -apple-system, system-ui, sans-serif";
         const tw = v3dCtx.measureText(label).width + 14;
         v3dCtx.fillStyle = "rgba(15,23,42,0.94)";
-        v3dCtx.strokeStyle = isGood ? "#22c55e" : "#f59e0b";
+        v3dCtx.strokeStyle = showPlane ? (isGood ? "#22c55e" : "#f59e0b") : "rgba(56,189,248,0.85)";
         v3dCtx.lineWidth = 1.6;
         if (typeof v3dCtx.roundRect === "function") {
           v3dCtx.beginPath();
@@ -3012,7 +3019,7 @@ function renderView3D() {
           v3dCtx.fillRect(mp[0] - tw / 2, mp[1] - 11, tw, 22);
           v3dCtx.strokeRect(mp[0] - tw / 2, mp[1] - 11, tw, 22);
         }
-        v3dCtx.fillStyle = isGood ? "#bbf7d0" : "#fde68a";
+        v3dCtx.fillStyle = showPlane ? (isGood ? "#bbf7d0" : "#fde68a") : "#e0f2fe";
         v3dCtx.textAlign = "center"; v3dCtx.textBaseline = "middle";
         v3dCtx.fillText(label, mp[0], mp[1]);
         v3dCtx.restore();
@@ -3129,7 +3136,7 @@ document.querySelectorAll(".v3d-pill[data-preset]").forEach(btn => {
 
 document.querySelectorAll(".v3d-pill.plane").forEach(btn => {
   btn.addEventListener("click", () => {
-    v3dRefPlane = btn.dataset.plane || "xy";
+    v3dRefPlane = btn.dataset.plane || "none";
     document.querySelectorAll(".v3d-pill.plane").forEach(b => b.classList.toggle("active", b === btn));
     if (v3dScene) renderView3DCards(v3dScene);
     renderView3D();
