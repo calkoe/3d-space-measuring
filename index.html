@@ -175,7 +175,7 @@
     position: absolute;
     right: 0;
     bottom: 0;
-    display: flex; gap: 6px;
+    display: flex; align-items: flex-end; gap: 6px;
     z-index: 15; pointer-events: none;
     transition: opacity 0.18s ease;
   }
@@ -470,10 +470,52 @@
   .v3d-actions button.primary { background: rgba(56,189,248,0.22); border-color: rgba(56,189,248,0.6); color: #e0f2fe; }
 
   @media (display-mode: standalone) {
-    #uiShell, #guideOverlay, #view3dOverlay {
-      padding-top: max(env(safe-area-inset-top), 50px);
-      padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    html, body {
+      height: var(--standalone-h, 100lvh);
+      min-height: 100vh;
+      min-height: 100lvh;
     }
+    #stage, #uiShell, #guideOverlay, #startCenterWrap, #view3dOverlay {
+      height: var(--standalone-h, 100lvh);
+      bottom: auto;
+    }
+    #uiShell, #guideOverlay, #view3dOverlay {
+      padding-top: calc(max(env(safe-area-inset-top), 59px) + 10px);
+      padding-bottom: calc(max(env(safe-area-inset-bottom), 28px) + 6px);
+    }
+  }
+  html.standalone, html.standalone body {
+    height: var(--standalone-h, 100lvh);
+    min-height: 100vh;
+    min-height: 100lvh;
+  }
+  html.standalone #stage,
+  html.standalone #uiShell,
+  html.standalone #guideOverlay,
+  html.standalone #startCenterWrap,
+  html.standalone #view3dOverlay {
+    height: var(--standalone-h, 100lvh);
+    bottom: auto;
+  }
+  html.standalone #uiShell,
+  html.standalone #guideOverlay,
+  html.standalone #view3dOverlay {
+    padding-top: calc(max(env(safe-area-inset-top), 59px) + 10px);
+    padding-bottom: calc(max(env(safe-area-inset-bottom), 28px) + 6px);
+  }
+  .cal-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+  .cal-row input {
+    flex: 1; min-width: 0; height: 38px; padding: 0 10px; border-radius: 10px;
+    background: rgba(255,255,255,0.08); color: var(--text);
+    border: 1px solid var(--border); font-size: 14px;
+  }
+  .cal-row button {
+    height: 38px; padding: 0 12px; border-radius: 10px;
+    border: 1px solid rgba(56,189,248,0.6); background: rgba(56,189,248,0.22);
+    color: #e0f2fe; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+  .cal-row button.ghost {
+    border-color: var(--border); background: rgba(255,255,255,0.08); color: var(--muted);
   }
   @media (orientation: landscape) and (max-height: 520px) {
     #uiShell {
@@ -613,16 +655,32 @@
   <div class="cfg-grid">
     <label class="field">
       Würfelgröße (mm)
-      <input id="cubeSize" type="number" value="48" step="1" min="15" max="300">
+      <input id="cubeSize" type="number" value="48" step="0.1" min="15" max="300">
     </label>
     <label class="field">
       Bezugshöhe Z (mm)
-      <input id="pivotZ" type="number" value="0" step="1" min="-100" max="200">
+      <input id="pivotZ" type="number" value="0" step="0.5" min="-100" max="200">
     </label>
     <label class="field" style="grid-column: span 2;">
       Kamera-Brennweite 35mm-Äquiv. (iPhone 14–16: 24, ältere: 26)
-      <input id="focal35" type="number" value="24" step="1" min="14" max="120">
+      <input id="focal35" type="number" value="24" step="0.1" min="14" max="120">
     </label>
+  </div>
+
+  <div class="sec-title">🎯 Kamera-Kalibrierung (optional, für mm-Abstände)</div>
+  <div class="detail-card" style="margin-bottom:4px;">
+    Winkel sind ab Werk genau (~0,5–1,5°). Für <strong>mm-genaue Abstände</strong> einmalig kalibrieren:
+    <ol style="margin:5px 0 6px 16px;padding:0;color:#cbd5e1;line-height:1.45;">
+      <li>Gedruckten Würfel mit Messschieber messen &amp; oben bei <strong>Würfelgröße</strong> eintragen (z. B. <span class="mono">47.8</span>).</li>
+      <li><strong>1 Würfel</strong> in bekanntem Abstand (z. B. <span class="mono">400 mm</span> von Rückkamera bis Würfelmitte, 2–3 Flächen sichtbar) per <strong>⏺ Capture</strong> erfassen.</li>
+      <li>Echten Abstand unten eintragen &amp; <strong>Kalibrieren</strong> tippen.</li>
+    </ol>
+    <div id="calInfo" class="mono" style="color:#93c5fd;">Noch keine Messung vorhanden — erst 1 Würfel erfassen.</div>
+    <div class="cal-row">
+      <input id="calTargetMm" type="number" value="400" step="1" min="100" max="5000" placeholder="Soll-Abstand (mm)">
+      <button id="btnCalibrate" type="button">🎯 Kalibrieren</button>
+      <button id="btnCalReset" class="ghost" type="button" title="Auf 24 mm zurücksetzen">↺ 24</button>
+    </div>
   </div>
 
   <div class="sec-title">3D-Messwürfel (48 mm · 2-Farb · Bambu-ready 3MF)</div>
@@ -859,7 +917,7 @@ function closeDrawers() {
   detailsDrawer.classList.remove("open");
 }
 backdrop.addEventListener("click", closeDrawers);
-btnSettings.addEventListener("click", () => openDrawer(settingsDrawer));
+btnSettings.addEventListener("click", () => { updateCalInfo(); openDrawer(settingsDrawer); });
 btnDetails.addEventListener("click", () => { renderDetailsDrawer(); openDrawer(detailsDrawer); });
 relBanner.addEventListener("click", () => { renderDetailsDrawer(); openDrawer(detailsDrawer); });
 btnToggleWidgets.addEventListener("click", () => {
@@ -3204,10 +3262,86 @@ view3dCanvas.addEventListener("wheel", e => {
   renderView3D();
 }, { passive: false });
 
-// --------- Resize-Sync für 3D-Ansicht bei Drehung / Viewport-Wechsel ---------
+// --------- Kamera-Brennweiten-Kalibrierung (1 Würfel + Soll-Abstand in mm) ---------
+const calInfoEl = document.getElementById("calInfo");
+const calTargetEl = document.getElementById("calTargetMm");
+const btnCalibrate = document.getElementById("btnCalibrate");
+const btnCalReset = document.getElementById("btnCalReset");
+
+function saveCfgToStorage() {
+  const obj = {};
+  for (const k of CFG_IDS) obj[k] = document.getElementById(k).value;
+  try { localStorage.setItem("aruco3d_cfg_v2", JSON.stringify(obj)); } catch (_) {}
+}
+
+function getCalibratedDistMm(o, cubeSize) {
+  // Abstand Kamera <-> exakte Würfelmitte (0, 0, cubeSize/2)
+  const h = cubeSize / 2.0;
+  return Math.hypot(o.camPosMm[0], o.camPosMm[1], o.camPosMm[2] - h);
+}
+
+function updateCalInfo() {
+  if (!calInfoEl) return;
+  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+    calInfoEl.textContent = "Noch keine Messung vorhanden — erst 1 Würfel erfassen.";
+    return;
+  }
+  const o = lastSnapshot.objects[0];
+  const cs = lastSnapshot.config?.cubeSize || 48.0;
+  const dMm = getCalibratedDistMm(o, cs);
+  const modeTxt = lastSnapshot.isCapture ? "Capture Ø" : "Live";
+  calInfoEl.textContent = `Gemessen (${modeTxt}, ${o.label}): ${dMm.toFixed(1)} mm (${(dMm / 10).toFixed(1)} cm) bei f=${lastSnapshot.config.focal35} mm`;
+}
+
+if (btnCalibrate) {
+  btnCalibrate.addEventListener("click", () => {
+    if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+      showToast("Erst 1 Würfel per Capture erfassen!");
+      return;
+    }
+    const targetMm = parseFloat(calTargetEl.value);
+    if (!Number.isFinite(targetMm) || targetMm < 100 || targetMm > 5000) {
+      showToast("Bitte gültigen Soll-Abstand (100–5000 mm) eingeben");
+      return;
+    }
+    const o = lastSnapshot.objects[0];
+    const cs = lastSnapshot.config?.cubeSize || 48.0;
+    const measuredMm = getCalibratedDistMm(o, cs);
+    const oldFocal = lastSnapshot.config?.focal35 || parseFloat(document.getElementById("focal35").value) || 24.0;
+    // Tiefe Z skaliert linear mit der Brennweite: Z_soll / Z_gemessen = f_neu / f_alt
+    const newFocal = clamp(oldFocal * (targetMm / measuredMm), 14, 120);
+    document.getElementById("focal35").value = newFocal.toFixed(1);
+    saveCfgToStorage();
+    updateCalInfo();
+    showToast(`Kalibriert: Brennweite = ${newFocal.toFixed(1)} mm ✓`);
+  });
+}
+
+if (btnCalReset) {
+  btnCalReset.addEventListener("click", () => {
+    document.getElementById("focal35").value = "24";
+    saveCfgToStorage();
+    updateCalInfo();
+    showToast("Brennweite zurückgesetzt (24 mm)");
+  });
+}
+
+// --------- Vollbild-Höhe für iOS Standalone PWA (beseitigt schwarzen Balken unten) ---------
 function syncAppHeight() {
+  const isStandalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  document.documentElement.classList.toggle("standalone", isStandalone);
+  if (isStandalone) {
+    const isPortrait = window.innerHeight >= window.innerWidth;
+    const physH = isPortrait
+      ? Math.max(window.innerHeight, window.screen.height || 0)
+      : Math.max(window.innerHeight, Math.min(window.screen.width || 0, window.screen.height || 0));
+    if (physH > 200) {
+      document.documentElement.style.setProperty("--standalone-h", `${Math.round(physH)}px`);
+    }
+  }
   if (v3dOpen) renderView3D();
 }
+syncAppHeight();
 window.addEventListener("resize", syncAppHeight);
 window.addEventListener("orientationchange", () => setTimeout(syncAppHeight, 150));
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncAppHeight);
