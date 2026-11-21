@@ -97,6 +97,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html manifest.webmanifest sw.js _site/
+          sed -i "s/__BUILD_SHA__/${GITHUB_SHA:0:8}/g" _site/sw.js
           cp -r icons models _site/
           touch _site/.nojekyll
 

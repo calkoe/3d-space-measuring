@@ -3203,24 +3203,53 @@ window.addEventListener("resize", syncAppHeight);
 window.addEventListener("orientationchange", () => setTimeout(syncAppHeight, 120));
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncAppHeight);
 
-// --------- PWA Service Worker (100 % Offline inkl. OpenCV.js über GitHub Pages) ---------
+// --------- PWA Service Worker (100 % Offline + Auto-Update über GitHub Pages) ---------
 const offlineStatusEl = document.getElementById("offlineStatus");
+let swRegRef = null;
+let swReloading = false;
+
+async function checkForAppUpdate() {
+  if (!swRegRef) { showToast("Kein Service Worker aktiv"); return; }
+  try {
+    await swRegRef.update();
+    showToast(swRegRef.installing || swRegRef.waiting ? "Update wird geladen…" : "App ist aktuell ✓");
+  } catch (_) {
+    showToast("Offline — Update-Prüfung nicht möglich");
+  }
+}
+
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").then(reg => {
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || swReloading) return;
+    if (capturePhase === "recording" || capturePhase === "countdown") return;
+    swReloading = true;
+    showToast("Neue Version geladen — aktualisiere…");
+    setTimeout(() => window.location.reload(), 650);
+  });
+
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(reg => {
+    swRegRef = reg;
     const updateMsg = () => {
       const ready = Boolean(navigator.serviceWorker.controller || reg.active);
       offlineStatusEl.innerHTML = ready
-        ? `<strong style="color:#86efac;">Offline-Modus aktiv ✓</strong><br>App &amp; OpenCV.js liegen lokal im Cache. Über <em>Teilen → Zum Home-Bildschirm</em> als eigenständige Offline-App installierbar.`
+        ? `<strong style="color:#86efac;">Offline-Modus aktiv ✓</strong><br>App &amp; OpenCV.js liegen lokal im Cache. Neue Versionen auf GitHub werden beim nächsten Online-Start automatisch erkannt.<br><button onclick="checkForAppUpdate()" style="margin-top:6px;padding:5px 10px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.09);color:var(--text);font-size:11.5px;font-weight:600;cursor:pointer;">🔄 Nach Updates suchen</button>`
         : `<strong style="color:#fde68a;">Offline-Cache wird geladen…</strong><br>Einmalig kurz warten, danach funktioniert die App komplett ohne Internet (auch im Flugmodus).`;
     };
     updateMsg();
+    reg.update().catch(() => {});
     reg.addEventListener("updatefound", () => {
       const nw = reg.installing;
       if (nw) nw.addEventListener("statechange", updateMsg);
     });
     navigator.serviceWorker.ready.then(updateMsg);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        reg.update().catch(() => {});
+      }
+    });
   }).catch(() => {
-    offlineStatusEl.innerHTML = `<strong style="color:#fcd34d;">Lokaler Modus (ohne Service Worker)</strong><br>iOS erlaubt Offline-Caching nur über vertrauenswürdiges HTTPS (z. B. <strong>GitHub Pages</strong>). Über GitHub Pages ist die App nach dem ersten Öffnen 100 % offline nutzbar.`;
+    offlineStatusEl.innerHTML = `<strong style="color:#fcd34d;">Lokaler Modus (ohne Service Worker)</strong><br>iOS erlaubt Offline-Caching &amp; Auto-Updates nur über vertrauenswürdiges HTTPS (z. B. <strong>GitHub Pages</strong>).`;
   });
 } else {
   offlineStatusEl.textContent = "Dieser Browser unterstützt keinen Offline-Service-Worker.";

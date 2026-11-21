@@ -1,4 +1,5 @@
-const CACHE_NAME = "aruco-3d-measure-v1";
+const APP_CACHE = "aruco-3d-app-__BUILD_SHA__";
+const OPENCV_CACHE = "aruco-3d-opencv-4.10.0";
 const OPENCV_URL = "https://docs.opencv.org/4.10.0/opencv.js";
 
 const APP_SHELL = [
@@ -12,18 +13,28 @@ const APP_SHELL = [
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    // App-Shell zwingend cachen
-    await cache.addAll(APP_SHELL);
-    // OpenCV.js WASM für echten Offline-Betrieb vorab cachen (inkl. no-cors Fallback für Safari)
-    try {
-      const resp = await fetch(OPENCV_URL, { mode: "cors" });
-      if (resp && resp.ok) await cache.put(OPENCV_URL, resp);
-    } catch (_) {
+    // 1. Neue App-Shell immer frisch vom Server laden (cache: "reload")
+    const appCache = await caches.open(APP_CACHE);
+    await Promise.all(APP_SHELL.map(async url => {
       try {
-        const opaque = await fetch(new Request(OPENCV_URL, { mode: "no-cors" }));
-        if (opaque) await cache.put(OPENCV_URL, opaque);
+        const resp = await fetch(url, { cache: "reload" });
+        if (resp && resp.ok) await appCache.put(url, resp);
       } catch (_) {}
+    }));
+
+    // 2. OpenCV.js nur 1x cachen (bleibt über App-Updates hinweg im eigenen Cache erhalten!)
+    const cvCache = await caches.open(OPENCV_CACHE);
+    const hasCv = await cvCache.match(OPENCV_URL);
+    if (!hasCv) {
+      try {
+        const resp = await fetch(OPENCV_URL, { mode: "cors" });
+        if (resp && resp.ok) await cvCache.put(OPENCV_URL, resp);
+      } catch (_) {
+        try {
+          const opaque = await fetch(new Request(OPENCV_URL, { mode: "no-cors" }));
+          if (opaque) await cvCache.put(OPENCV_URL, opaque);
+        } catch (_) {}
+      }
     }
     self.skipWaiting();
   })());
@@ -31,8 +42,9 @@ self.addEventListener("install", event => {
 
 self.addEventListener("activate", event => {
   event.waitUntil((async () => {
+    const keep = new Set([APP_CACHE, OPENCV_CACHE]);
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+    await Promise.all(keys.filter(k => !keep.has(k)).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -45,13 +57,13 @@ self.addEventListener("fetch", event => {
   // 1. OpenCV.js (~10 MB): Cache-First für blitzschnellen Start & 100 % Offline-Betrieb
   if (url.href === OPENCV_URL || url.hostname === "docs.opencv.org") {
     event.respondWith((async () => {
-      const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(req, { ignoreSearch: true }) || await cache.match(OPENCV_URL);
+      const cvCache = await caches.open(OPENCV_CACHE);
+      const cached = await cvCache.match(req, { ignoreSearch: true }) || await cvCache.match(OPENCV_URL);
       if (cached) return cached;
       try {
         const resp = await fetch(req);
         if (resp && (resp.ok || resp.type === "opaque")) {
-          cache.put(req, resp.clone());
+          cvCache.put(OPENCV_URL, resp.clone());
         }
         return resp;
       } catch (_) {
@@ -61,21 +73,21 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // 2. Gleiche Origin (index.html, manifest, icons, 3D-Modelle): Network-First mit sofortigem Offline-Fallback
+  // 2. Eigene App-Dateien: Network-First mit sofortigem Offline-Fallback
   if (url.origin === self.location.origin) {
     event.respondWith((async () => {
-      const cache = await caches.open(CACHE_NAME);
+      const appCache = await caches.open(APP_CACHE);
       try {
-        const fresh = await fetch(req);
+        const fresh = await fetch(req, { cache: "no-cache" });
         if (fresh && fresh.ok) {
-          cache.put(req, fresh.clone());
+          appCache.put(req, fresh.clone());
         }
         return fresh;
       } catch (_) {
-        const cached = await cache.match(req, { ignoreSearch: true });
+        const cached = await appCache.match(req, { ignoreSearch: true });
         if (cached) return cached;
         if (req.mode === "navigate") {
-          const fallback = await cache.match("./index.html");
+          const fallback = await appCache.match("./index.html");
           if (fallback) return fallback;
         }
         return new Response("Offline", { status: 503 });
