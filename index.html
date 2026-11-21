@@ -66,7 +66,7 @@
     gap: 8px;
     padding-top: max(10px, env(safe-area-inset-top));
     padding-right: max(10px, env(safe-area-inset-right));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-bottom: calc(max(10px, env(safe-area-inset-bottom)) + 6px);
     padding-left: max(10px, env(safe-area-inset-left));
     z-index: 20;
     pointer-events: none;
@@ -271,7 +271,7 @@
   }
   button.act {
     min-width: 0;
-    height: 42px; padding: 0 6px; border-radius: 8px;
+    height: 44px; padding: 0 6px; border-radius: 8px;
     border: 1px solid var(--border);
     background: rgba(9, 13, 22, 0.46);
     color: var(--text);
@@ -279,7 +279,9 @@
     font-size: clamp(11px, 3vw, 12.5px); font-weight: 700; letter-spacing: 0.03em;
     display: flex; align-items: center; justify-content: center; gap: 4px;
     cursor: pointer; white-space: nowrap; overflow: hidden;
+    transition: transform 0.06s ease, opacity 0.08s ease;
   }
+  button.act:active:not(:disabled), .icon-btn:active { transform: scale(0.96); opacity: 0.82; }
   button.act:disabled { opacity: 0.36; cursor: default; }
   button.act.primary { background: rgba(37, 99, 235, 0.72); border-color: rgba(96, 165, 250, 0.72); }
   button.act.active { background: rgba(22, 163, 74, 0.68); border-color: rgba(74, 222, 128, 0.68); }
@@ -1335,6 +1337,7 @@ function detectMarkersJS(gray, highRes = false) {
       const cnt = contours.get(i);
       let approx = null, srcPts = null, M = null;
       try {
+        if (cnt.rows < 4) continue;
         const area = cv.contourArea(cnt);
         if (area < minArea || area > maxArea) continue;
         const peri = cv.arcLength(cnt, true);
@@ -1351,15 +1354,19 @@ function detectMarkersJS(gray, highRes = false) {
         cv.warpPerspective(gray, patch, M, new cv.Size(36, 36), cv.INTER_LINEAR);
         cv.threshold(patch, patchBin, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
 
+        const pb = patchBin.data;
         let borderOk = true;
         let innerMask = 0;
         for (let r = 0; r < 6 && borderOk; r++) {
+          const rowBase = r * 6;
           for (let c = 0; c < 6; c++) {
+            const colBase = c * 6;
             let dark = 0;
             for (let dy = 2; dy <= 4; dy++) {
-              for (let dx = 2; dx <= 4; dx++) {
-                if (patchBin.ucharAt(r * 6 + dy, c * 6 + dx) === 0) dark++;
-              }
+              const rowOff = (rowBase + dy) * 36 + colBase;
+              if (pb[rowOff + 2] === 0) dark++;
+              if (pb[rowOff + 3] === 0) dark++;
+              if (pb[rowOff + 4] === 0) dark++;
             }
             const isBlack = dark >= 5 ? 1 : 0;
             if (r === 0 || r === 5 || c === 0 || c === 5) {
@@ -2324,6 +2331,8 @@ function resetCaptureUI() {
   }
 }
 
+let lastWorkMs = 0;
+
 function loop(now) {
   if (!streaming || capturePhase === "captured") return;
 
@@ -2342,12 +2351,14 @@ function loop(now) {
       }
 
       const isRec = capturePhase === "recording";
-      // Vorschau: 10 Hz (640 px); 3s-Capture: ~10 Hz (960 px + Subpixel)
-      const interval = isRec ? 100 : 95;
+      // Ziel: 10 Hz Vorschau (640 px) & ~10 Hz HD-Capture (960 px), mit adaptiver UI-Atempause gegen Touch-Lag
+      const minGap = isRec ? Math.max(100, lastWorkMs * 1.4) : Math.max(95, lastWorkMs * 1.9);
       let freshSnap = null;
-      if (!lastDetectMs || now - lastDetectMs >= interval) {
-        lastDetectMs = now;
+      if (!lastDetectMs || now - lastDetectMs >= minGap) {
+        const t0 = performance.now();
+        lastDetectMs = t0;
         freshSnap = analyzeCurrentCanvas(isRec);
+        lastWorkMs = performance.now() - t0;
         if (freshSnap) {
           if (freshSnap.objects.length > 0 || capturePhase === "idle") {
             lastSnapshot = freshSnap;
@@ -2415,8 +2426,10 @@ function loop(now) {
       } else if (video.readyState < 2) {
         scheduleNextLoop(120);
       } else {
-        const waitMs = Math.max(16, 100 - (performance.now() - lastDetectMs));
-        scheduleNextLoop(waitMs);
+        // Mindestens 45 ms (bzw. 90 % der letzten Rechenzeit) frei lassen, damit iOS-Touch immer sofort reagiert
+        const targetWait = 100 - (performance.now() - lastDetectMs);
+        const minIdle = Math.max(45, lastWorkMs * 0.9);
+        scheduleNextLoop(Math.max(minIdle, targetWait));
       }
     }
   }
@@ -2539,11 +2552,15 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-btnCapture.addEventListener("click", () => {
+let lastCapTapMs = 0;
+function handleCaptureTap() {
   if (!streaming) return;
+  const now = performance.now();
+  if (now - lastCapTapMs < 240) return;
+  lastCapTapMs = now;
   if (capturePhase === "idle") {
     capturePhase = "countdown";
-    captureStartMs = performance.now();
+    captureStartMs = now;
     captureSamples = [];
     captureOverlay.classList.add("visible");
     btnCapture.textContent = "✕ Abbruch";
@@ -2557,7 +2574,13 @@ btnCapture.addEventListener("click", () => {
     lastDetectMs = 0;
     scheduleNextLoop(0);
   }
+}
+btnCapture.addEventListener("pointerdown", e => {
+  if (e.button && e.button !== 0) return;
+  e.preventDefault();
+  handleCaptureTap();
 });
+btnCapture.addEventListener("click", handleCaptureTap);
 
 // Einstellungen lokal merken
 const CFG_IDS = ["cubeSize", "pivotZ", "focal35"];
