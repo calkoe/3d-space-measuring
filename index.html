@@ -170,26 +170,32 @@
     pointer-events: none;
   }
 
-  /* CORNER WIDGETS */
+  /* CORNER WIDGETS (links Orbit & Höhe, rechts Würfel X/Y/Z — gleich hoch & transparent-technisch) */
   #widgets {
     position: absolute;
+    left: 0;
     right: 0;
     bottom: 0;
-    display: flex; align-items: flex-end; gap: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
     z-index: 15; pointer-events: none;
     transition: opacity 0.18s ease;
   }
   #widgets.hidden { opacity: 0; }
   .widget-box {
-    background: var(--panel);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--border);
-    border-radius: 14px; padding: 4px;
+    width: 108px;
+    background: rgba(9, 13, 22, 0.34);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 10px;
+    padding: 5px 5px 4px;
     display: flex; flex-direction: column; align-items: center;
   }
   .widget-title {
-    font-size: 9px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 8.5px; font-weight: 700; color: rgba(203, 213, 225, 0.82);
+    text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 2px;
   }
 
   /* BOTTOM ACTION BAR (3 großzügige Buttons) */
@@ -599,15 +605,15 @@
 
   <!-- FLEXIBLE MITTE (Corner-Widgets) -->
   <div id="midArea">
-    <!-- CORNER WIDGETS -->
+    <!-- CORNER WIDGETS (links Orbit & Höhe, rechts Würfel X/Y/Z) -->
     <div id="widgets">
       <div class="widget-box">
-        <div class="widget-title">Orbit & Höhe</div>
-        <canvas id="sphereCanvas" width="128" height="128" style="width:98px;height:98px;"></canvas>
+        <div class="widget-title">Orbit &amp; Höhe</div>
+        <canvas id="sphereCanvas" width="192" height="192" style="width:96px;height:96px;"></canvas>
       </div>
       <div class="widget-box">
         <div class="widget-title">Würfel X/Y/Z</div>
-        <canvas id="gizmoCanvas" width="96" height="96" style="width:76px;height:76px;"></canvas>
+        <canvas id="gizmoCanvas" width="192" height="192" style="width:96px;height:96px;"></canvas>
       </div>
     </div>
   </div>
@@ -1044,43 +1050,79 @@ function sphericalFromNormal(nx, ny, nz) {
   };
 }
 
-// --------- Widgets ---------
-function drawSphereWidget(azimDeg, elevDeg, accentColor = "#22c55e") {
-  const c = sphereCtx, W = 128, H = 128, cx = W / 2, cy = H / 2, R = 43;
-  c.clearRect(0, 0, W, H);
+// --------- Technische HUD-Widgets (192×192 HiDPI) ---------
+function drawHudBrackets(c, W, H) {
+  const m = 4, l = 12;
+  c.strokeStyle = "rgba(56,189,248,0.42)";
+  c.lineWidth = 1.6;
+  c.beginPath();
+  c.moveTo(m, m + l); c.lineTo(m, m); c.lineTo(m + l, m);
+  c.moveTo(W - m - l, m); c.lineTo(W - m, m); c.lineTo(W - m, m + l);
+  c.moveTo(m, H - m - l); c.lineTo(m, H - m); c.lineTo(m + l, H - m);
+  c.moveTo(W - m - l, H - m); c.lineTo(W - m, H - m); c.lineTo(W - m, H - m - l);
+  c.stroke();
+}
 
-  c.strokeStyle = "rgba(148,163,184,0.35)";
-  c.lineWidth = 1.5;
+function drawSphereWidget(azimDeg, elevDeg, accentColor = "#22c55e") {
+  const c = sphereCtx, W = 192, H = 192, cx = W / 2, cy = H / 2, R = 64;
+  c.clearRect(0, 0, W, H);
+  drawHudBrackets(c, W, H);
+
+  // Äußerer Kompassring & 15°-Striche
+  c.strokeStyle = "rgba(148,163,184,0.45)";
+  c.lineWidth = 1.6;
   c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
 
-  c.setLineDash([3, 3]);
-  c.beginPath(); c.arc(cx, cy, R * Math.cos(Math.PI / 4), 0, Math.PI * 2); c.stroke();
+  for (let deg = 0; deg < 360; deg += 15) {
+    const a = deg2rad(deg);
+    const major = deg % 90 === 0;
+    const med = deg % 45 === 0;
+    const r0 = R - (major ? 8 : med ? 6 : 3.5);
+    c.strokeStyle = major ? "rgba(226,232,240,0.65)" : "rgba(148,163,184,0.35)";
+    c.lineWidth = major ? 1.8 : 1.1;
+    c.beginPath();
+    c.moveTo(cx + r0 * Math.sin(a), cy + r0 * Math.cos(a));
+    c.lineTo(cx + R * Math.sin(a), cy + R * Math.cos(a));
+    c.stroke();
+  }
+
+  // Höhenringe (30° und 60° Elevation)
+  c.setLineDash([4, 4]);
+  c.strokeStyle = "rgba(148,163,184,0.28)";
+  c.lineWidth = 1.1;
+  c.beginPath(); c.arc(cx, cy, R * Math.cos(deg2rad(30)), 0, Math.PI * 2); c.stroke();
+  c.beginPath(); c.arc(cx, cy, R * Math.cos(deg2rad(60)), 0, Math.PI * 2); c.stroke();
   c.setLineDash([]);
 
-  c.strokeStyle = "rgba(148,163,184,0.2)";
+  // Fadenkreuz
+  c.strokeStyle = "rgba(148,163,184,0.22)";
+  c.lineWidth = 1.1;
   c.beginPath();
   c.moveTo(cx - R, cy); c.lineTo(cx + R, cy);
   c.moveTo(cx, cy - R); c.lineTo(cx, cy + R);
   c.stroke();
 
-  c.fillStyle = "rgba(248,250,252,0.18)";
+  // Drahtgitter-Würfel in der Mitte + +X-Fase (Amber)
+  c.fillStyle = "rgba(248,250,252,0.12)";
   c.strokeStyle = accentColor;
-  c.lineWidth = 1.3;
-  c.fillRect(cx - 7, cy - 7, 14, 14);
-  c.strokeRect(cx - 7, cy - 7, 14, 14);
+  c.lineWidth = 1.8;
+  c.fillRect(cx - 10, cy - 10, 20, 20);
+  c.strokeRect(cx - 10, cy - 10, 20, 20);
   c.strokeStyle = "#f59e0b";
-  c.lineWidth = 2.5;
-  c.beginPath(); c.moveTo(cx + 7, cy - 6); c.lineTo(cx + 7, cy + 6); c.stroke();
+  c.lineWidth = 3.6;
+  c.beginPath(); c.moveTo(cx + 10, cy - 9); c.lineTo(cx + 10, cy + 9); c.stroke();
 
-  c.fillStyle = "#94a3b8";
-  c.font = "bold 9px system-ui";
+  // Technische Achsenbeschriftung
+  c.font = "700 13px ui-monospace, SFMono-Regular, Menlo, monospace";
   c.textAlign = "center";
-  c.fillText("0° V", cx, cy + R + 12);
-  c.fillText("180°", cx, cy - R - 5);
-  c.fillStyle = "#ef4444";
-  c.fillText("+X", cx + R + 11, cy + 3);
-  c.fillStyle = "#94a3b8";
-  c.fillText("-X", cx - R - 11, cy + 3);
+  c.textBaseline = "middle";
+  c.fillStyle = "rgba(203,213,225,0.82)";
+  c.fillText("0°", cx, cy + R + 16);
+  c.fillText("180", cx, cy - R - 14);
+  c.fillStyle = "#f87171";
+  c.fillText("+X", cx + R + 16, cy);
+  c.fillStyle = "rgba(148,163,184,0.75)";
+  c.fillText("-X", cx - R - 16, cy);
 
   if (azimDeg === null || elevDeg === null) return;
 
@@ -1088,46 +1130,97 @@ function drawSphereWidget(azimDeg, elevDeg, accentColor = "#22c55e") {
   const rOrb = R * Math.cos(clamp(el, 0, Math.PI / 2));
   const px = cx + rOrb * Math.sin(az);
   const py = cy + rOrb * Math.cos(az);
+  const rx = cx + R * Math.sin(az);
+  const ry = cy + R * Math.cos(az);
+
+  // Peilstrahl bis Kompassrand + aktiver Vektor
+  c.strokeStyle = "rgba(56,189,248,0.35)";
+  c.lineWidth = 1.4;
+  c.setLineDash([4, 3]);
+  c.beginPath(); c.moveTo(px, py); c.lineTo(rx, ry); c.stroke();
+  c.setLineDash([]);
 
   c.strokeStyle = "#38bdf8";
-  c.lineWidth = 2;
+  c.lineWidth = 2.6;
   c.beginPath(); c.moveTo(cx, cy); c.lineTo(px, py); c.stroke();
 
+  // Azimut-Marke auf Außenring
   c.fillStyle = accentColor;
-  c.beginPath(); c.arc(cx + R * Math.sin(az), cy + R * Math.cos(az), 3.5, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(rx, ry, 4.5, 0, Math.PI * 2); c.fill();
 
-  c.fillStyle = elevDeg < 0 ? "#f59e0b" : "#38bdf8";
-  c.strokeStyle = "#fff";
-  c.lineWidth = 1.5;
-  c.beginPath(); c.arc(px, py, 5.5, 0, Math.PI * 2); c.fill(); c.stroke();
+  // Ziel-Retikel an Kameraposition
+  const retCol = elevDeg < 0 ? "#f59e0b" : "#38bdf8";
+  c.strokeStyle = retCol;
+  c.lineWidth = 2;
+  c.beginPath(); c.arc(px, py, 9, 0, Math.PI * 2); c.stroke();
+  c.fillStyle = "#ffffff";
+  c.beginPath(); c.arc(px, py, 3.5, 0, Math.PI * 2); c.fill();
 }
 
 function drawGizmo(rData) {
-  const c = gizmoCtx, W = 96, H = 96, cx = W / 2, cy = H / 2, L = 30;
+  const c = gizmoCtx, W = 192, H = 192, cx = W / 2, cy = H / 2, L = 58;
   c.clearRect(0, 0, W, H);
-  if (!rData) return;
+  drawHudBrackets(c, W, H);
+
+  // Technischer Außenring & Fadenkreuz (auch im Standby sichtbar)
+  c.strokeStyle = "rgba(148,163,184,0.32)";
+  c.lineWidth = 1.4;
+  c.beginPath(); c.arc(cx, cy, L + 6, 0, Math.PI * 2); c.stroke();
+
+  c.strokeStyle = "rgba(148,163,184,0.18)";
+  c.lineWidth = 1.1;
+  c.beginPath();
+  c.moveTo(cx - 14, cy); c.lineTo(cx + 14, cy);
+  c.moveTo(cx, cy - 14); c.lineTo(cx, cy + 14);
+  c.stroke();
+
+  if (!rData) {
+    c.font = "700 12px ui-monospace, SFMono-Regular, Menlo, monospace";
+    c.fillStyle = "rgba(148,163,184,0.55)";
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.fillText("STANDBY", cx, cy + 36);
+    return;
+  }
 
   const axes = [
-    { name: "X", col: "#ef4444", x: rData[0], y: rData[3], z: rData[6] },
-    { name: "Y", col: "#22c55e", x: rData[1], y: rData[4], z: rData[7] },
-    { name: "Z", col: "#3b82f6", x: rData[2], y: rData[5], z: rData[8] },
+    { name: "X", col: "#ef4444", dim: "rgba(239,68,68,0.28)", x: rData[0], y: rData[3], z: rData[6] },
+    { name: "Y", col: "#22c55e", dim: "rgba(34,197,94,0.28)", x: rData[1], y: rData[4], z: rData[7] },
+    { name: "Z", col: "#3b82f6", dim: "rgba(59,130,246,0.28)", x: rData[2], y: rData[5], z: rData[8] },
   ];
   axes.sort((a, b) => b.z - a.z);
 
-  c.font = "bold 11px system-ui";
+  c.font = "700 15px ui-monospace, SFMono-Regular, Menlo, monospace";
   c.textAlign = "center";
   c.textBaseline = "middle";
   for (const a of axes) {
+    // Dezente negative Achse (gestrichelt)
+    c.save();
+    c.strokeStyle = a.dim;
+    c.lineWidth = 1.6;
+    c.setLineDash([4, 4]);
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - a.x * (L * 0.55), cy - a.y * (L * 0.55)); c.stroke();
+    c.restore();
+
+    // Positive Achse mit Pfeilspitze
     const ex = cx + a.x * L, ey = cy + a.y * L;
     c.strokeStyle = a.col;
-    c.lineWidth = 3;
+    c.lineWidth = 3.2;
     c.beginPath(); c.moveTo(cx, cy); c.lineTo(ex, ey); c.stroke();
+
+    const ang = Math.atan2(ey - cy, ex - cx);
     c.fillStyle = a.col;
-    c.beginPath(); c.arc(ex, ey, 3.5, 0, Math.PI * 2); c.fill();
-    c.fillText(a.name, cx + a.x * (L + 10), cy + a.y * (L + 10));
+    c.beginPath();
+    c.moveTo(ex, ey);
+    c.lineTo(ex - 11 * Math.cos(ang - 0.4), ey - 11 * Math.sin(ang - 0.4));
+    c.lineTo(ex - 11 * Math.cos(ang + 0.4), ey - 11 * Math.sin(ang + 0.4));
+    c.closePath();
+    c.fill();
+
+    c.fillText(a.name, cx + a.x * (L + 16), cy + a.y * (L + 16));
   }
   c.fillStyle = "#f8fafc";
-  c.beginPath(); c.arc(cx, cy, 3, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(cx, cy, 4, 0, Math.PI * 2); c.fill();
 }
 
 // --------- Marker-Erkennung (IDs 0..14) ---------
@@ -2278,6 +2371,7 @@ try {
 } catch (_) {}
 
 drawSphereWidget(null, null);
+drawGizmo(null);
 
 // --------- Animierte 3D-Start-Schematik (Würfel-Ausrichtung & Fase) ---------
 const guideOverlay = document.getElementById("guideOverlay");
