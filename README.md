@@ -12,8 +12,10 @@ Die gesamte Bildverarbeitung läuft **100 % lokal im Smartphone-Browser** (iOS S
 
 - **Kugelkoordinaten zur Kamera:** Echtzeit-Messung von **Azimut (Orbit um Z)**, **Elevation (Höhenwinkel)** und **Abstand** relativ zu jedem Messwürfel.
 - **Multi-Marker 3D-Vermessung (bis zu 3 Würfel gleichzeitig):** Berechnet zwischen allen sichtbaren Würfeln den **3D-Abstand (mm)**, den relativen **Versatz (`ΔX / ΔY / ΔZ`)**, den **Flächenwinkel (`+Z/+Z`)**, die **3D-Gesamtdrehung**, **Euler-Winkel (ZYX)** und die **Normalenvektoren**.
+- **Erkennung auch auf Distanz:** Leichte Live-Vorschau (640 px) markiert vermutete Würfel (`?`) und prüft sie gezielt in Originalauflösung nach; das Capture nutzt die volle 1080p-Auflösung, Subpixel-Ecken, hochskalierte Ausschnitte für kleine Marker und 1-Bit-Fehlerkorrektur (≈ 3× Reichweite gegenüber vorher).
+- **Feste Hauptkamera & Zoom:** Auf iPhone Pro wird die Weitwinkel-Rückkamera fest gewählt (kein automatischer Linsenwechsel auf Ultraweitwinkel/Makro); optionaler Digital-Zoom `1×/2×/3×` für weit entfernte Würfel, mit exakt angepasster Brennweite.
 - **Zeitgesteuertes 3s-Capture mit Ausreißer-Filterung:** 1 s Vorlauf (Hand beruhigen) → 3 s Aufzeichnung mit Multi-Flächen-Bevorzugung, MAD-Ausreißer-Filter, zirkulärem Mittelwert (`±σ`) und anschließendem Standbild.
-- **Interaktive 3D-Raumansicht (`🧊 3D`):** Zeigt nach dem Capture (oder live) alle 1–3 Messwürfel maßstabsgetreu samt **3D-Kameraposition & Blickwinkeln** im Raum (frei dreh- & zoombar), mit:
+- **Interaktive 3D-Raumansicht (`🧊 3D`):** Öffnet sich nach dem Capture automatisch exakt aus Sicht der Kamera (nahtlose Überblendung aus dem Standbild) und zeigt alle 1–3 Messwürfel maßstabsgetreu samt **3D-Kameraposition & Blickwinkeln** im Raum (frei dreh- & zoombar), mit:
   - **Umschaltbaren Flächenwinkeln (`XY (+Z)`, `XZ (-Y)`, `YZ (+X)`)** inkl. visualisierter Bezugsebenen je Würfel
   - **3-Punkt-Winkel / Dreieck (bei 3 Würfeln):** Bildet rein aus den 3 Würfelmittelpunkten ein 3D-Dreieck und zeigt alle 3 Innenwinkel (unabhängig von der Drehung der einzelnen Würfel!) mit automatischem **90°-Check**
   - **Direkten 3D-Abständen** (Mittelpunkt ↔ Mittelpunkt) & schaltbarer `ΔX/ΔY/ΔZ`-Projektion

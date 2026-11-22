@@ -57,6 +57,45 @@
     display: block;
   }
   #canvas { pointer-events: none; }
+  /* Kamerabild erst nach den ersten stabilen Frames einblenden (kein Größen-/Linsen-Sprung beim Start) */
+  #video { opacity: 0; transition: opacity 0.22s ease; }
+  #video.ready { opacity: 1; }
+  /* Dezentes Fadenkreuz in Bildmitte (= optische Achse) — nur bei laufender Kamera */
+  #crosshair {
+    position: absolute; left: 50%; top: 50%;
+    width: 44px; height: 44px; margin: -22px 0 0 -22px;
+    pointer-events: none; opacity: 0; transition: opacity 0.22s ease;
+  }
+  #video.ready ~ #crosshair { opacity: 1; }
+  /* Zielmodus: nur dieses Quadrat wird (in voller Auflösung) ausgewertet, Rest abgedunkelt */
+  #focusFrame {
+    position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(56,189,248,0.55); border-radius: 6px;
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,0.38);
+    pointer-events: none; display: none;
+  }
+  #focusFrame.on { display: block; }
+  #focusFrame::after {
+    content: "ZIEL · VOLLE AUFLÖSUNG"; position: absolute; left: 6px; top: 5px;
+    font: 700 8.5px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em;
+    color: rgba(186,230,253,0.85);
+  }
+  #crosshair::before, #crosshair::after {
+    content: ""; position: absolute; background: rgba(241, 245, 249, 0.55);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+  }
+  #crosshair::before { left: 0; right: 0; top: 50%; height: 1px; margin-top: -0.5px;
+    -webkit-mask: linear-gradient(90deg, #000 0 38%, transparent 38% 62%, #000 62%); mask: linear-gradient(90deg, #000 0 38%, transparent 38% 62%, #000 62%); }
+  #crosshair::after { top: 0; bottom: 0; left: 50%; width: 1px; margin-left: -0.5px;
+    -webkit-mask: linear-gradient(180deg, #000 0 38%, transparent 38% 62%, #000 62%); mask: linear-gradient(180deg, #000 0 38%, transparent 38% 62%, #000 62%); }
+  /* Ruhige, einfarbige Fläche unter der Statusleiste (PWA): iOS weichzeichnet diesen Streifen über dem Kamerabild */
+  #statusShade {
+    position: fixed; left: 0; right: 0; top: 0;
+    height: var(--sat, env(safe-area-inset-top, 0px));
+    background: #05080f;
+    z-index: 60; pointer-events: none;
+  }
 
   /* RESPONSIVE VIEWPORT SHELL (Vollbild in iOS Safari & Home-Screen PWA ohne Abschneiden) */
   #uiShell {
@@ -64,9 +103,9 @@
     top: 0; right: 0; bottom: 0; left: 0;
     display: flex; flex-direction: column;
     gap: 8px;
-    padding-top: max(10px, env(safe-area-inset-top));
+    padding-top: max(10px, calc(var(--sat, env(safe-area-inset-top)) + 4px));
     padding-right: max(10px, env(safe-area-inset-right));
-    padding-bottom: calc(max(10px, env(safe-area-inset-bottom)) + 6px);
+    padding-bottom: max(10px, calc(var(--sab, env(safe-area-inset-bottom)) - 12px));
     padding-left: max(10px, env(safe-area-inset-left));
     z-index: 20;
     pointer-events: none;
@@ -109,6 +148,8 @@
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; padding: 0; flex: none;
   }
+  .icon-btn.zoom { width: 34px; font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .icon-btn.wide { width: auto; padding: 0 9px; font-family: var(--mono); font-size: 11px; font-weight: 700; }
   .icon-btn.active { background: rgba(56,189,248,0.20); border-color: var(--border-hi); color: #bae6fd; }
   .icon-btn.torch-on {
     background: rgba(245,158,11,0.28);
@@ -156,12 +197,14 @@
   .meta {
     margin-top: 6px; font-family: var(--mono);
     font-size: 10.5px; color: rgba(203,213,225,0.78); letter-spacing: 0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #relBanner {
     display: none; margin-top: 6px; padding: 5px 8px;
     border-radius: 7px; background: rgba(56,189,248,0.12);
     border: 1px solid rgba(56,189,248,0.34);
     font-family: var(--mono); font-size: 10.5px; color: #bae6fd; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #relBanner.visible { display: block; }
 
@@ -302,7 +345,7 @@
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
     border-top: 1px solid var(--border-hi);
     border-radius: 14px 14px 0 0;
-    padding: 14px 16px calc(max(16px, env(safe-area-inset-bottom)) + 6px);
+    padding: 14px 16px calc(max(16px, var(--sab, env(safe-area-inset-bottom))) + 6px);
     z-index: 35;
     transform: translateY(105%);
     transition: transform 0.22s ease;
@@ -378,9 +421,9 @@
   #guideOverlay {
     position: fixed;
     top: 0; right: 0; bottom: 0; left: 0;
-    padding-top: max(14px, env(safe-area-inset-top));
+    padding-top: max(14px, var(--sat, env(safe-area-inset-top)));
     padding-right: max(12px, env(safe-area-inset-right));
-    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    padding-bottom: max(14px, var(--sab, env(safe-area-inset-bottom)));
     padding-left: max(12px, env(safe-area-inset-left));
     background: rgba(4, 7, 15, 0.78);
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
@@ -467,82 +510,174 @@
     background: rgba(9,13,22,0.55); border: 1px solid var(--border-subtle);
   }
 
-  /* FULLSCREEN 3D SCENE VIEWER */
+  /* FULLSCREEN 3D SCENE VIEWER (Canvas deckungsgleich mit Kamerabild → nahtloser Übergang aus dem Standbild) */
   #view3dOverlay {
     position: fixed;
     top: 0; right: 0; bottom: 0; left: 0;
     background: #060a12;
     z-index: 45;
     display: none;
-    flex-direction: column;
-    padding-top: max(8px, env(safe-area-inset-top));
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+    overflow: hidden;
   }
-  #view3dOverlay.open { display: flex; }
-  .v3d-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 4px 12px 8px;
-    border-bottom: 1px solid var(--border);
-    flex: none;
-  }
-  .v3d-head h2 {
-    margin: 0; font-family: var(--mono);
-    font-size: 13.5px; letter-spacing: 0.04em; text-transform: uppercase;
-    display: flex; align-items: center; gap: 7px;
-  }
-  .v3d-toolbar {
-    display: flex; flex-direction: column; gap: 5px;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: rgba(9, 13, 22, 0.72);
-    flex: none;
-  }
-  .v3d-bar-row {
-    display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
-  }
-  .v3d-bar-lbl {
-    font-family: var(--mono);
-    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
-    color: var(--muted); margin-right: 3px; flex: none;
-  }
-  .v3d-sep { width: 1px; height: 15px; background: var(--border); margin: 0 2px; flex: none; }
-  .v3d-pill {
-    flex: none; padding: 4px 8px; border-radius: 6px;
-    border: 1px solid var(--border);
-    background: rgba(9,13,22,0.55);
-    color: var(--muted); font-family: var(--mono); font-size: 10.5px; font-weight: 700; cursor: pointer;
-  }
-  .v3d-pill.active {
-    background: rgba(56,189,248,0.18); color: #e0f2fe; border-color: rgba(56,189,248,0.62);
-  }
-  .v3d-pill.plane.active {
-    background: rgba(245,158,11,0.20); color: #fde68a; border-color: rgba(245,158,11,0.65);
-  }
-  .v3d-stage {
-    position: relative; flex: 1; min-height: 200px; overflow: hidden;
-  }
+  #view3dOverlay.open { display: block; }
   #view3dCanvas {
+    position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; display: block; touch-action: none;
     background: radial-gradient(circle at 50% 45%, #0f192d 0%, #060a12 78%);
   }
+  .v3d-top {
+    position: absolute; left: 0; right: 0; top: 0;
+    padding-top: max(10px, calc(var(--sat, env(safe-area-inset-top)) + 4px));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    pointer-events: none;
+  }
+  .v3d-panel {
+    pointer-events: auto;
+    background: var(--panel);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.12);
+  }
+  .v3d-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 8px;
+  }
+  .v3d-head h2 {
+    flex: none; margin: 0; font-family: var(--mono);
+    font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden;
+  }
+  .v3d-back {
+    flex: none; height: 32px; padding: 0 12px 0 9px; border-radius: 8px;
+    border: 1px solid rgba(96, 165, 250, 0.72); background: rgba(37, 99, 235, 0.72);
+    color: #fff; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  }
+  /* Scan-Qualität: Ampel + Streuung (±σ) der Messung */
+  .v3d-quality {
+    margin-left: auto; min-width: 0; text-align: right;
+    padding: 3px 8px; border-radius: 7px; border: 1px solid var(--border);
+    font-family: var(--mono); line-height: 1.25; white-space: nowrap; overflow: hidden;
+  }
+  .v3d-quality .q-top { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .v3d-quality .q-sub { font-size: 9.5px; color: rgba(203,213,225,0.8); overflow: hidden; text-overflow: ellipsis; }
+  .v3d-quality.q-good { border-color: rgba(34,197,94,0.5); background: rgba(34,197,94,0.12); }
+  .v3d-quality.q-good .q-top { color: #86efac; }
+  .v3d-quality.q-ok { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.12); }
+  .v3d-quality.q-ok .q-top { color: #fcd34d; }
+  .v3d-quality.q-poor { border-color: rgba(239,68,68,0.55); background: rgba(239,68,68,0.14); }
+  .v3d-quality.q-poor .q-top { color: #fca5a5; }
+  .v3d-obj {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-family: var(--mono); font-size: 10.5px; color: rgba(203,213,225,0.78);
+    padding: 2px 2px;
+  }
+  .v3d-obj .sig { color: var(--muted); font-size: 9.5px; }
+  .v3d-back:active { transform: scale(0.96); opacity: 0.85; }
+  .v3d-toolbar {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 8px; align-items: center;
+    padding: 2px 8px 8px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 7px;
+  }
+  .v3d-bar-lbl {
+    font-family: var(--mono);
+    font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  /* Segmentierte Auswahl (genau 1 aktiv) */
+  .v3d-seg {
+    display: flex; min-width: 0; overflow-x: auto; scrollbar-width: none;
+    border: 1px solid var(--border); border-radius: 8px; background: rgba(9,13,22,0.5);
+  }
+  .v3d-seg::-webkit-scrollbar { display: none; }
+  .v3d-seg button {
+    flex: 1 0 auto; padding: 6px 8px; border: none; background: transparent;
+    border-left: 1px solid var(--border-subtle);
+    color: var(--muted); font-family: var(--mono); font-size: 10.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+  .v3d-seg button:first-child { border-left: none; }
+  .v3d-seg button.active { background: rgba(56,189,248,0.22); color: #e0f2fe; }
+  /* Winkel: Zeile 1 = Mittelpunkte | Flächen XY, Zeile 2 = Aus | Flächen XZ | Flächen YZ */
+  .v3d-seg.angles {
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px;
+    background: rgba(148,163,184,0.2);
+  }
+  .v3d-seg.angles button { border-left: none; background: rgba(9,13,22,0.82); padding: 6px 4px; font-size: 10px; }
+  .v3d-seg.angles button[data-angle="tri"] { grid-column: span 4; }
+  .v3d-seg.angles button[data-angle="none"] { grid-column: span 2; }
+  .v3d-seg.angles button.face { grid-column: span 2; }
+  .v3d-seg.angles button[data-angle="tri"].active { background: #3a2556; color: #f3e8ff; }
+  .v3d-seg.angles button.face.active { background: #4a3514; color: #fde68a; }
+  .v3d-seg.angles button[data-angle="none"].active { background: #183048; color: #e0f2fe; }
+  .v3d-seg button:disabled { opacity: 0.35; cursor: default; }
+  /* Ein-/Ausblenden (mehrfach wählbar) */
+  .v3d-toggles { display: flex; gap: 5px; flex-wrap: wrap; }
+  .v3d-pill {
+    flex: none; padding: 4px 9px; border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(9,13,22,0.5);
+    color: var(--muted); font-family: var(--mono); font-size: 10.5px; font-weight: 700; cursor: pointer;
+  }
+  .v3d-pill::before { content: "○ "; }
+  .v3d-pill.active { background: rgba(56,189,248,0.16); color: #e0f2fe; border-color: rgba(56,189,248,0.6); }
+  .v3d-pill.active::before { content: "● "; }
+  .v3d-angle-info {
+    grid-column: 1 / -1; margin-top: -1px;
+    font-size: 10.5px; line-height: 1.35; color: rgba(203,213,225,0.8);
+  }
+  .v3d-bottom {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding-bottom: max(10px, calc(var(--sab, env(safe-area-inset-bottom)) - 12px));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    pointer-events: none;
+  }
+  .v3d-bottom-row {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 8px;
+    margin-bottom: 8px;
+  }
+  /* Basis-Button als Foto-Rahmen (Miniatur wie in der Kamera-App): aktiv = Originalansicht unverändert */
+  .v3d-home {
+    pointer-events: auto; flex: none; position: relative;
+    width: 50px; height: 66px; padding: 0; border-radius: 9px; overflow: hidden;
+    border: 2px solid rgba(241,245,249,0.55); background: #0b1220;
+    cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.06s ease;
+  }
+  .v3d-home canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0.7; transition: opacity 0.15s ease; }
+  .v3d-home span {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 0 3px;
+    background: rgba(9,13,22,0.72); color: #e2e8f0;
+    font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; text-align: center;
+  }
+  .v3d-home.active { border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.35), 0 6px 18px rgba(0,0,0,0.5); }
+  .v3d-home.active canvas { opacity: 1; }
+  .v3d-home.active span { background: rgba(37,99,235,0.85); color: #fff; }
+  .v3d-home:active { transform: scale(0.95); }
   .v3d-hint {
-    position: absolute; left: 10px; bottom: 8px;
+    display: inline-block; margin: 0 0 0 2px;
     padding: 3px 8px; border-radius: 6px;
     background: rgba(9,13,22,0.58); border: 1px solid var(--border-subtle);
     font-family: var(--mono); font-size: 10px; color: var(--muted); pointer-events: none;
   }
   .v3d-footer {
-    flex: none; max-height: 36dvh; overflow-y: auto;
+    max-height: 30dvh; overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    border-top: 1px solid var(--border);
-    background: rgba(9, 13, 22, 0.94);
-    padding: 8px 12px 6px;
+    padding: 7px 8px 7px;
   }
+  .v3d-rel {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    font-family: var(--mono); font-size: 11.5px; padding: 3px 2px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .v3d-rel:last-child { border-bottom: none; }
+  .v3d-rel b { font-size: 13px; font-variant-numeric: tabular-nums; color: #e0f2fe; }
   .v3d-card {
     background: var(--surface); border: 1px solid var(--border-subtle);
-    border-radius: 8px; padding: 8px 10px; margin-bottom: 7px;
+    border-radius: 8px; padding: 6px 9px; margin-bottom: 6px;
     font-size: 12px; line-height: 1.45;
   }
   .v3d-badge-ok {
@@ -555,10 +690,10 @@
     background: rgba(245,158,11,0.16); color: #fde68a; border: 1px solid rgba(245,158,11,0.45);
     font-family: var(--mono); font-size: 10.5px; font-weight: 700; margin-left: 4px;
   }
-  .v3d-actions { display: flex; gap: 6px; margin-top: 4px; }
+  .v3d-actions { display: flex; gap: 6px; margin-top: 6px; }
   .v3d-actions button {
     flex: 1; height: 36px; border-radius: 7px;
-    border: 1px solid var(--border); background: var(--surface);
+    border: 1px solid var(--border); background: rgba(9,13,22,0.46);
     color: var(--text); font-family: var(--mono); font-size: 11.5px; font-weight: 700; cursor: pointer;
   }
   .v3d-actions button.primary { background: rgba(56,189,248,0.18); border-color: var(--border-hi); color: #e0f2fe; }
@@ -573,9 +708,9 @@
       height: var(--standalone-h, 100lvh);
       bottom: auto;
     }
-    #uiShell, #guideOverlay, #view3dOverlay {
-      padding-top: calc(max(env(safe-area-inset-top), 59px) + 10px);
-      padding-bottom: calc(max(env(safe-area-inset-bottom), 28px) + 6px);
+    #guideOverlay {
+      padding-top: max(14px, calc(var(--sat, env(safe-area-inset-top)) + 6px));
+      padding-bottom: max(14px, var(--sab, env(safe-area-inset-bottom)));
     }
   }
   html.standalone, html.standalone body {
@@ -591,11 +726,9 @@
     height: var(--standalone-h, 100lvh);
     bottom: auto;
   }
-  html.standalone #uiShell,
-  html.standalone #guideOverlay,
-  html.standalone #view3dOverlay {
-    padding-top: calc(max(env(safe-area-inset-top), 59px) + 10px);
-    padding-bottom: calc(max(env(safe-area-inset-bottom), 28px) + 6px);
+  html.standalone #guideOverlay {
+    padding-top: max(14px, calc(var(--sat, env(safe-area-inset-top)) + 6px));
+    padding-bottom: max(14px, var(--sab, env(safe-area-inset-bottom)));
   }
   .cal-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
   .cal-row input {
@@ -618,12 +751,13 @@
       grid-template-columns: minmax(290px, 345px) 1fr;
       grid-template-rows: auto 1fr auto;
       gap: 8px;
-      padding-top: max(8px, env(safe-area-inset-top));
+      padding-top: max(8px, var(--sat, env(safe-area-inset-top)));
     }
     #hud { grid-column: 1; grid-row: 1; }
     #bottomBar { grid-column: 1; grid-row: 3; }
     #midArea { grid-column: 2; grid-row: 1 / span 3; }
     .val { font-size: 19px; }
+    #uiShell { padding-bottom: max(8px, var(--sab, env(safe-area-inset-bottom))); }
   }
   @media (max-height: 680px) {
     .val { font-size: 20px; }
@@ -638,7 +772,10 @@
 <div id="stage">
   <video id="video" playsinline autoplay muted></video>
   <canvas id="canvas"></canvas>
+  <div id="crosshair"></div>
+  <div id="focusFrame"></div>
 </div>
+<div id="statusShade"></div>
 
 <div id="uiShell">
   <!-- TOP HUD -->
@@ -647,6 +784,10 @@
       <span class="hud-title">3D Space Measuring</span>
       <div class="hud-actions">
         <span id="status" class="badge warn">Lade OpenCV…</span>
+        <button id="btnFocus" class="icon-btn" title="Zielmodus: nur Bereich um das Fadenkreuz in voller Auflösung auswerten" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button id="btnZoom" class="icon-btn zoom" title="Kamera-Zoom (mehr Reichweite für kleine/entfernte Würfel)" style="display:none;">1×</button>
         <button id="btnTorch" class="icon-btn" title="LED einschalten" aria-pressed="false" style="display:none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 10-12h-7l0-8z"/></svg>
         </button>
@@ -817,6 +958,7 @@
   <div id="offlineStatus" class="detail-card" style="margin-bottom:0;color:var(--muted);">
     Prüfe Offline-Cache…
   </div>
+  <div id="safeAreaInfo" class="mono" style="margin-top:6px;color:var(--muted);"></div>
 
   <div class="drawer-btns">
     <button class="primary" onclick="closeDrawers()">Fertig</button>
@@ -842,40 +984,52 @@
 
 <!-- FULLSCREEN 3D-RAUMANSICHT -->
 <div id="view3dOverlay">
-  <div class="v3d-head">
-    <h2>🧊 3D-Raumansicht <span id="v3dBadge" class="badge multi">Capture</span></h2>
-    <button id="btnClose3D" class="icon-btn" title="Schließen">✕</button>
-  </div>
-  <div class="v3d-toolbar">
-    <div class="v3d-bar-row">
-      <span class="v3d-bar-lbl">Sicht</span>
-      <button class="v3d-pill active" data-preset="iso">Iso</button>
-      <button class="v3d-pill" data-preset="cam">📷</button>
-      <button class="v3d-pill" data-preset="top">Oben</button>
-      <button class="v3d-pill" data-preset="front">Vorne</button>
-      <button class="v3d-pill" data-preset="right">Seite</button>
-      <span class="v3d-sep"></span>
-      <button id="btn3dDeltas" class="v3d-pill active">Δ</button>
-      <button id="btn3dCam" class="v3d-pill active">Kam</button>
+  <canvas id="view3dCanvas"></canvas>
+  <div class="v3d-top">
+    <div class="v3d-panel">
+      <div class="v3d-head">
+        <button id="btnClose3D" class="v3d-back" title="Zurück zur Live-Kamera">‹ Live</button>
+        <h2>3D <span id="v3dBadge" class="badge multi">Capture</span></h2>
+        <div id="v3dQuality" class="v3d-quality" title="Scan-Qualität"></div>
+      </div>
+      <div class="v3d-toolbar">
+        <span class="v3d-bar-lbl">Ansicht</span>
+        <div class="v3d-seg" id="v3dViewSeg">
+          <button data-preset="iso">Iso</button>
+          <button data-preset="top">Oben</button>
+          <button data-preset="front">Vorne</button>
+          <button data-preset="right">Seite</button>
+        </div>
+        <span class="v3d-bar-lbl">Winkel</span>
+        <div class="v3d-seg angles" id="v3dAngleSeg">
+          <button data-angle="tri">△ Mittelpunkte</button>
+          <button class="face" data-angle="xy">Flächen XY</button>
+          <button data-angle="none">Aus</button>
+          <button class="face" data-angle="xz">Flächen XZ</button>
+          <button class="face" data-angle="yz">Flächen YZ</button>
+        </div>
+        <div id="v3dAngleInfo" class="v3d-angle-info"></div>
+        <span class="v3d-bar-lbl">Zeigen</span>
+        <div class="v3d-toggles">
+          <button id="btn3dDeltas" class="v3d-pill" title="Versatz ΔX/ΔY/ΔZ zwischen den Würfeln">ΔXYZ</button>
+          <button id="btn3dAxes" class="v3d-pill" title="Lokale Würfelachsen">Achsen</button>
+          <button id="btn3dCam" class="v3d-pill" title="Kameraposition & Blickstrahl">Kamera</button>
+        </div>
+      </div>
     </div>
-    <div class="v3d-bar-row">
-      <span class="v3d-bar-lbl">Flächenwinkel</span>
-      <button class="v3d-pill plane active" data-plane="none">Aus</button>
-      <button class="v3d-pill plane" data-plane="xy">XY (+Z)</button>
-      <button class="v3d-pill plane" data-plane="xz">XZ (-Y)</button>
-      <button class="v3d-pill plane" data-plane="yz">YZ (+X)</button>
+  </div>
+  <div class="v3d-bottom">
+    <div class="v3d-bottom-row">
+      <div id="v3dHint" class="v3d-hint">Ziehen = Drehen · 2 Finger = Zoom/Verschieben</div>
+      <button id="btn3dHome" class="v3d-home active" title="Originalansicht: Foto aus Sicht der Kamera"><canvas id="v3dHomeThumb" width="100" height="132"></canvas><span>Foto</span></button>
     </div>
-  </div>
-  <div class="v3d-stage">
-    <canvas id="view3dCanvas"></canvas>
-    <div id="v3dHint" class="v3d-hint">Ziehen = Drehen · 2 Finger = Zoom</div>
-  </div>
-  <div class="v3d-footer">
-    <div id="v3dCards"></div>
-    <div class="v3d-actions">
-      <button onclick="copyReport()">📋 Kopieren</button>
-      <button onclick="downloadYamlReport()">⬇ .yaml</button>
-      <button class="primary" onclick="downloadReport()">⬇ .txt</button>
+    <div class="v3d-panel v3d-footer">
+      <div id="v3dCards"></div>
+      <div class="v3d-actions">
+        <button onclick="copyReport()">📋 Kopieren</button>
+        <button onclick="downloadYamlReport()">⬇ .yaml</button>
+        <button class="primary" onclick="downloadReport()">⬇ .txt</button>
+      </div>
     </div>
   </div>
 </div>
@@ -887,6 +1041,14 @@
 const MARKER_RATIO = 0.75; // 36 mm / 48 mm (bleibt bei gleichmäßiger Skalierung im Slicer exakt erhalten)
 const CAPTURE_DELAY_MS = 1000;
 const CAPTURE_DURATION_MS = 3000;
+// Erkennung: Vorschau = leicht (640 px + wenige ROI-Nachprüfungen in Originalauflösung),
+// Capture = volle Stream-Auflösung + Subpixel-Ecken + hochskalierte ROIs für kleine/entfernte Würfel
+const PREVIEW_MAX_PX = 640;
+const CAPTURE_MAX_PX = 1920;
+const PREVIEW_ROI_MAX = 3;
+const CAPTURE_ROI_MAX = 8;
+// Zielmodus: zentrales Quadrat (Anteil der kurzen Bildseite) in nativer Auflösung — ähnliche Pixelzahl wie die 640-px-Vorschau ×1,8
+const FOCUS_FRAC = 0.6;
 
 const CUBES = [
   { key: "marker1", label: "Marker 1", idOffset: 0,  color: "#22c55e", file: "messwuerfel-1" },
@@ -920,6 +1082,23 @@ for (let id = 0; id < DICT_4X4_15.length; id++) {
     if (!MARKER_MAP.has(m)) MARKER_MAP.set(m, { id, rot });
     m = rotateMaskCW(m);
   }
+}
+
+// 1-Bit-Fehlerkorrektur: Mindest-Hamming-Abstand der 15 Codes inkl. Rotationen = 5 → Korrektur eindeutig
+const MARKER_ENTRIES = Array.from(MARKER_MAP.entries()).map(([mask, v]) => ({ mask, ...v }));
+function popcount16(x) {
+  x -= (x >> 1) & 0x5555;
+  x = (x & 0x3333) + ((x >> 2) & 0x3333);
+  x = (x + (x >> 4)) & 0x0f0f;
+  return (x + (x >> 8)) & 0x1f;
+}
+function lookupMarker(mask) {
+  const hit = MARKER_MAP.get(mask);
+  if (hit) return hit;
+  for (const e of MARKER_ENTRIES) {
+    if (popcount16(e.mask ^ mask) === 1) return e;
+  }
+  return null;
 }
 
 function quad3D(c, u, v, s) {
@@ -966,8 +1145,30 @@ let capturePhase = "idle";
 let captureStartMs = 0;
 let captureSamples = []; // Array von Snapshots aus dem 3s-Fenster
 
+// Getrennte Arbeits-Canvases für Vorschau (640 px) & Capture (volle Auflösung) → kein Re-Allokieren beim Moduswechsel
 const workCanvas = document.createElement("canvas");
 const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
+const workCanvasHi = document.createElement("canvas");
+const workCtxHi = workCanvasHi.getContext("2d", { willReadFrequently: true });
+let camZoom = 1;
+let zoomSteps = [1];
+// Foto des letzten Captures (bleibt bis zum nächsten Capture erhalten) & Momentaufnahme für Live-3D
+const capturePhotoCanvas = document.createElement("canvas");
+const livePhotoCanvas = document.createElement("canvas");
+let lastCaptureSnap = null;
+let captureGravity = [];
+// Snapshot für Details/Export/Kalibrierung: offene 3D-Ansicht > letztes Capture > Live
+function reportSnap() {
+  if (v3dOpen && v3dScene) return v3dScene.snap;
+  return lastCaptureSnap || lastSnapshot;
+}
+function grabVideoTo(cnv) {
+  if (cnv.width !== video.videoWidth || cnv.height !== video.videoHeight) {
+    cnv.width = video.videoWidth; cnv.height = video.videoHeight;
+  }
+  cnv.getContext("2d").drawImage(video, 0, 0, cnv.width, cnv.height);
+  return cnv;
+}
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
@@ -1314,7 +1515,8 @@ function readMatFloats(mat) {
   return mat.depth() === cv.CV_64F ? Array.from(mat.data64F) : Array.from(mat.data32F);
 }
 
-function detectMarkersJS(gray, highRes = false) {
+// Liefert dekodierte Marker + "Kandidaten" (markerähnliche Quadrate mit dunklem Rand, aber zu klein/unscharf zum Dekodieren)
+function detectMarkersJS(gray, { subpix = false, maxQuads = 80, minSide = 13, candidates = false } = {}) {
   const thresh = new cv.Mat();
   const contours = new cv.MatVector();
   const hierarchy = new cv.Mat();
@@ -1322,16 +1524,19 @@ function detectMarkersJS(gray, highRes = false) {
   const patch = new cv.Mat();
   const patchBin = new cv.Mat();
   const bestById = new Map(); // id -> { area, corners }
+  const cands = [];
 
   try {
     const blockSize = Math.max(11, (Math.round(Math.min(gray.rows, gray.cols) / 25) | 1));
     cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, blockSize, 7);
     cv.findContours(thresh, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-    const minArea = Math.max(180, (gray.rows * gray.cols) * 0.0005);
+    // Absolute Mindestgröße (statt % der Bildfläche) → kleine, entfernte Marker bleiben auch in hoher Auflösung erhalten
+    const minArea = minSide * minSide;
+    const candArea = candidates ? 36 : minArea;
     const maxArea = (gray.rows * gray.cols) * 0.65;
-    let quadChecks = 0;
-    const maxQuads = highRes ? 120 : 80;
+    let quadChecks = 0, candChecks = 0;
+    const maxCandChecks = 40;
 
     for (let i = 0; i < contours.size() && quadChecks < maxQuads; i++) {
       const cnt = contours.get(i);
@@ -1339,15 +1544,25 @@ function detectMarkersJS(gray, highRes = false) {
       try {
         if (cnt.rows < 4) continue;
         const area = cv.contourArea(cnt);
-        if (area < minArea || area > maxArea) continue;
+        if (area < candArea || area > maxArea) continue;
+        const decodable = area >= minArea;
+        if (!decodable && candChecks >= maxCandChecks) continue;
         const peri = cv.arcLength(cnt, true);
         approx = new cv.Mat();
-        cv.approxPolyDP(cnt, approx, 0.03 * peri, true);
+        cv.approxPolyDP(cnt, approx, Math.max(1.0, 0.03 * peri), true);
         if (approx.rows !== 4 || !cv.isContourConvex(approx)) continue;
-        quadChecks++;
+        if (decodable) quadChecks++; else candChecks++;
 
         let pts = [];
         for (let k = 0; k < 4; k++) pts.push([approx.data32S[k * 2], approx.data32S[k * 2 + 1]]);
+        // Extrem schiefe Splitter verwerfen
+        let minL = Infinity, maxL = 0;
+        for (let k = 0; k < 4; k++) {
+          const l = Math.hypot(pts[(k + 1) % 4][0] - pts[k][0], pts[(k + 1) % 4][1] - pts[k][1]);
+          if (l < minL) minL = l;
+          if (l > maxL) maxL = l;
+        }
+        if (minL < maxL * 0.25) continue;
         pts = orderQuadCW(pts);
         srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, pts.flat());
         M = cv.getPerspectiveTransform(srcPts, dstPts);
@@ -1355,9 +1570,10 @@ function detectMarkersJS(gray, highRes = false) {
         cv.threshold(patch, patchBin, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
 
         const pb = patchBin.data;
-        let borderOk = true;
+        let borderDark = 0;
+        let innerDark = 0;
         let innerMask = 0;
-        for (let r = 0; r < 6 && borderOk; r++) {
+        for (let r = 0; r < 6; r++) {
           const rowBase = r * 6;
           for (let c = 0; c < 6; c++) {
             const colBase = c * 6;
@@ -1370,27 +1586,30 @@ function detectMarkersJS(gray, highRes = false) {
             }
             const isBlack = dark >= 5 ? 1 : 0;
             if (r === 0 || r === 5 || c === 0 || c === 5) {
-              if (!isBlack) { borderOk = false; break; }
+              borderDark += isBlack;
             } else {
               innerMask = (innerMask << 1) | isBlack;
+              innerDark += isBlack;
             }
           }
         }
 
-        if (borderOk) {
-          const hit = MARKER_MAP.get(innerMask);
+        const hit = decodable && borderDark === 20 ? lookupMarker(innerMask) : null;
+        if (hit) {
           // Bei doppelter Kontur (innen/außen) immer die größte äußere Kontur pro ID behalten
-          if (hit && (!bestById.has(hit.id) || area > bestById.get(hit.id).area)) {
+          if (!bestById.has(hit.id) || area > bestById.get(hit.id).area) {
             // hit.rot = Anzahl 90°-CW-Drehungen des Warps -> wahre Ecke 0 (TL) liegt bei pts[hit.rot]
             const shift = hit.rot % 4;
             const ordered = [0, 1, 2, 3].map(idx => pts[(idx + shift) % 4]);
             let refined = ordered;
-            if (highRes) {
+            if (subpix) {
               let sp = null;
               try {
+                // Suchfenster an Markergröße anpassen (kleine Marker: kleines Fenster, sonst springt die Ecke auf Nachbarzellen)
+                const win = clamp(Math.round(Math.sqrt(area) / 14), 2, 5);
                 sp = cv.matFromArray(4, 1, cv.CV_32FC2, ordered.flat());
-                cv.cornerSubPix(gray, sp, new cv.Size(5, 5), new cv.Size(-1, -1),
-                  new cv.TermCriteria(cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 20, 0.05));
+                cv.cornerSubPix(gray, sp, new cv.Size(win, win), new cv.Size(-1, -1),
+                  new cv.TermCriteria(cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 20, 0.03));
                 refined = [];
                 for (let k = 0; k < 4; k++) refined.push([sp.data32F[k * 2], sp.data32F[k * 2 + 1]]);
               } catch (_) {
@@ -1400,6 +1619,8 @@ function detectMarkersJS(gray, highRes = false) {
             }
             bestById.set(hit.id, { area, corners: refined });
           }
+        } else if (candidates && borderDark >= 15 && innerDark >= 2 && innerDark <= 14) {
+          cands.push({ pts, area, score: borderDark });
         }
       } finally {
         if (M) M.delete();
@@ -1412,7 +1633,48 @@ function detectMarkersJS(gray, highRes = false) {
     dstPts.delete(); patch.delete(); patchBin.delete();
     thresh.delete(); contours.delete(); hierarchy.delete();
   }
-  return Array.from(bestById.entries()).map(([id, v]) => ({ id, corners: v.corners }));
+  return {
+    markers: Array.from(bestById.entries()).map(([id, v]) => ({ id, area: v.area, corners: v.corners })),
+    candidates: cands,
+  };
+}
+
+// ROI-Nachdetektion direkt aus dem Video in Originalauflösung (optional hochskaliert) — nur wenige kleine Ausschnitte, daher billig
+const ROI_MAX_PX = 480;
+const roiCanvas = document.createElement("canvas");
+roiCanvas.width = ROI_MAX_PX; roiCanvas.height = ROI_MAX_PX;
+const roiCtx = roiCanvas.getContext("2d", { willReadFrequently: true });
+
+function detectInVideoRoi(cx, cy, side, subpix) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const half = Math.max(side * 1.4, 10);
+  const sx = Math.max(0, Math.floor(cx - half)), sy = Math.max(0, Math.floor(cy - half));
+  const sw = Math.min(vw, Math.ceil(cx + half)) - sx, sh = Math.min(vh, Math.ceil(cy + half)) - sy;
+  if (sw < 8 || sh < 8) return [];
+  // Ziel: Marker im Ausschnitt ≥ ~72 px (≈ 12 px pro Zelle) — bei sehr kleinen Markern bis 4× hochskalieren
+  let up = clamp(72 / Math.max(side, 1), 1, 4);
+  up = Math.min(up, ROI_MAX_PX / sw, ROI_MAX_PX / sh);
+  const dw = Math.max(8, Math.round(sw * up)), dh = Math.max(8, Math.round(sh * up));
+  roiCtx.imageSmoothingEnabled = true;
+  roiCtx.imageSmoothingQuality = "high";
+  roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
+
+  let src = null, gray = null;
+  try {
+    src = cv.matFromImageData(roiCtx.getImageData(0, 0, dw, dh));
+    gray = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    const det = detectMarkersJS(gray, { subpix, maxQuads: 24, minSide: 12 });
+    const ux = dw / sw, uy = dh / sh;
+    return det.markers.map(m => ({
+      id: m.id,
+      area: m.area / (ux * uy),
+      corners: m.corners.map(p => [sx + p[0] / ux, sy + p[1] / uy]),
+    }));
+  } finally {
+    if (src) src.delete();
+    if (gray) gray.delete();
+  }
 }
 
 // --------- 3D Pose für einen Messwürfel ---------
@@ -1792,14 +2054,24 @@ function aggregateCaptureSamples(samples, lastFrameSnap) {
     });
   }
 
+  // Pose des Referenzwürfels aus dem jüngsten Frame → 3D-Kamerasicht deckt sich mit dem eingefrorenen Standbild
+  let viewPose = null;
+  const refKey = avgObjects[0]?.key;
+  for (let i = samples.length - 1; i >= 0 && !viewPose && refKey; i--) {
+    const o = samples[i].objects.find(x => x.key === refKey);
+    if (o) viewPose = { R: o.R, t: o.t };
+  }
+
   return {
     timestamp: new Date(),
     isCapture: true,
     totalFrames: samples.length,
     config: lastFrameSnap.config,
     rawMarkers: lastFrameSnap.rawMarkers,
+    hints: [],
     objects: avgObjects,
     relations: avgRelations,
+    viewPose,
   };
 }
 
@@ -1810,6 +2082,23 @@ function drawOverlay(snap) {
   ctx.lineWidth = Math.max(2, w / 280);
   const fontSize = Math.max(14, Math.round(w / 45));
   ctx.font = `700 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+
+  // Vermutete Marker (zu klein/unscharf für die leichte Vorschau) → gestrichelter Zielkreis
+  if (snap.hints && snap.hints.length) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(245,158,11,0.9)";
+    ctx.fillStyle = "#fcd34d";
+    ctx.lineWidth = Math.max(2, w / 360);
+    ctx.setLineDash([6, 5]);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    for (const hnt of snap.hints) {
+      const r = Math.max(hnt.side * 0.85, w / 34);
+      ctx.beginPath(); ctx.arc(hnt.c[0], hnt.c[1], r, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillText("?", hnt.c[0], hnt.c[1] - r - 3);
+    }
+    ctx.restore();
+  }
 
   for (const m of snap.rawMarkers) {
     ctx.strokeStyle = m.color;
@@ -1876,6 +2165,9 @@ function updateHUD(snap) {
         const idsTxt = snap.rawMarkers.map(m => m.id).join(",");
         const why = snap.rejectReason ? ` (${snap.rejectReason})` : "";
         vMeta.textContent = `Fläche erkannt (ID ${idsTxt}), Pose instabil${why} — leicht drehen`;
+      } else if (snap && snap.hints && snap.hints.length > 0) {
+        const zoomTip = zoomSteps.length > 1 && camZoom < zoomSteps[zoomSteps.length - 1] ? ", Zoom" : "";
+        vMeta.textContent = `Marker vermutet (${snap.hints.length}) — näher ran${zoomTip} oder ⏺ Capture (volle Auflösung)`;
       } else {
         vMeta.textContent = "Kein Messwürfel erkannt — Marker 1, 2 oder 3 ins Bild halten";
       }
@@ -1946,11 +2238,11 @@ function updateHUD(snap) {
 }
 
 function renderDetailsDrawer() {
-  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+  const s = reportSnap();
+  if (!s || s.objects.length === 0) {
     detailsBody.innerHTML = `<div class="detail-card" style="color:var(--muted);">Noch kein Messwürfel erkannt.</div>`;
     return;
   }
-  const s = lastSnapshot;
   let html = `<div class="sec-title">${s.isCapture ? `Capture-Mittelwert (${s.totalFrames} Frames)` : "Live-Messwerte"} · ${s.objects.length} Objekt(e)</div>`;
   for (const o of s.objects) {
     const stdInfo = o.azimStd !== null ? ` (±${o.azimStd.toFixed(2)}° / ±${o.elevStd.toFixed(2)}° · N=${o.samples})` : "";
@@ -2004,22 +2296,30 @@ function analyzeCurrentCanvas(highRes = false) {
     canvas.width = cw; canvas.height = ch;
   }
 
-  // Vorschau: 640 px @ 10 Hz (flüssig & scharf, ohne 60-FPS-Video-Kopie); 3s-Capture: 960 px + Subpixel-Ecken
-  const maxW = highRes ? 960 : 640;
-  const scale = Math.min(1, maxW / Math.max(cw, ch));
-  const ww = Math.round(cw * scale), wh = Math.round(ch * scale);
-  if (workCanvas.width !== ww || workCanvas.height !== wh) {
-    workCanvas.width = ww; workCanvas.height = wh;
+  // Vorschau: 640 px @ 10 Hz + max. 3 ROI-Nachprüfungen; 3s-Capture: volle Stream-Auflösung + Subpixel + ROI-Upscaling
+  // Zielmodus: nur zentrales Quadrat um das Fadenkreuz, immer in nativer Auflösung (Rest des Bildes wird ignoriert)
+  let sx = 0, sy = 0, sw = cw, sh = ch;
+  if (focusMode) {
+    const S = Math.round(Math.min(cw, ch) * FOCUS_FRAC);
+    sx = Math.round((cw - S) / 2); sy = Math.round((ch - S) / 2); sw = S; sh = S;
   }
-  workCtx.drawImage(video, 0, 0, ww, wh);
+  const maxW = focusMode ? Infinity : (highRes ? CAPTURE_MAX_PX : PREVIEW_MAX_PX);
+  const scale = Math.min(1, maxW / Math.max(sw, sh));
+  const ww = Math.round(sw * scale), wh = Math.round(sh * scale);
+  const wCanvas = highRes ? workCanvasHi : workCanvas;
+  const wCtx = highRes ? workCtxHi : workCtx;
+  if (wCanvas.width !== ww || wCanvas.height !== wh) {
+    wCanvas.width = ww; wCanvas.height = wh;
+  }
+  wCtx.drawImage(video, sx, sy, sw, sh, 0, 0, ww, wh);
 
   let src = null, gray = null, K = null, dist = null;
   try {
-    src = cv.imread(workCanvas);
+    src = cv.imread(wCanvas);
     gray = new cv.Mat();
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-    const detectedSmall = detectMarkersJS(gray, highRes);
+    const det = detectMarkersJS(gray, { subpix: highRes, maxQuads: highRes ? 200 : 80, candidates: true });
     const inv = 1.0 / scale;
     const rawCube = parseFloat(document.getElementById("cubeSize").value);
     const cubeSize = Number.isFinite(rawCube) && rawCube >= 10 ? rawCube : 48.0;
@@ -2030,19 +2330,54 @@ function analyzeCurrentCanvas(highRes = false) {
     const rawFocal = parseFloat(document.getElementById("focal35").value);
     const focal35 = Number.isFinite(rawFocal) && rawFocal >= 10 ? rawFocal : 24.0;
 
+    // Alle Treffer in Video-Koordinaten (id -> größte Kontur)
+    const found = new Map();
+    const addFound = m => {
+      const prev = found.get(m.id);
+      if (!prev || m.area > prev.area) found.set(m.id, m);
+    };
+    for (const m of det.markers) {
+      addFound({ id: m.id, area: m.area * inv * inv, corners: m.corners.map(p => [p[0] * inv + sx, p[1] * inv + sy]) });
+    }
+
+    // Kandidaten (zu klein/unscharf) in Video-Koordinaten, Duplikate (Innen-/Außenkontur) & bereits erkannte Marker entfernen
+    const centerOf = pts => [(pts[0][0] + pts[1][0] + pts[2][0] + pts[3][0]) / 4, (pts[0][1] + pts[1][1] + pts[2][1] + pts[3][1]) / 4];
+    const known = Array.from(found.values()).map(m => ({ c: centerOf(m.corners), r: Math.sqrt(m.area) }));
+    const cands = [];
+    for (const cd of det.candidates.sort((a, b) => b.area - a.area)) {
+      const c0 = centerOf(cd.pts);
+      const c = [c0[0] * inv + sx, c0[1] * inv + sy];
+      const side = Math.sqrt(cd.area) * inv;
+      if (known.some(k => Math.hypot(k.c[0] - c[0], k.c[1] - c[1]) < k.r * 0.8)) continue;
+      if (cands.some(k => Math.hypot(k.c[0] - c[0], k.c[1] - c[1]) < Math.max(k.side, side) * 0.8)) continue;
+      cands.push({ c, side });
+    }
+
+    const hints = [];
+    const roiBudget = highRes ? CAPTURE_ROI_MAX : PREVIEW_ROI_MAX;
+    for (let i = 0; i < cands.length; i++) {
+      const cd = cands[i];
+      // ROI lohnt nur, wenn sie mehr Pixel liefert als das Arbeitsbild (Vorschau) bzw. hochskaliert werden kann (Capture)
+      const worthRoi = scale < 0.999 || cd.side < 72;
+      // (im Zielmodus bereits native Auflösung → ROI nur zum Hochskalieren kleiner Marker)
+      const hits = i < roiBudget && worthRoi ? detectInVideoRoi(cd.c[0], cd.c[1], cd.side, highRes) : [];
+      if (hits.length) hits.forEach(addFound);
+      else if (hints.length < 6) hints.push(cd);
+    }
+
     const grouped = new Map(CUBES.map(c => [c.key, []]));
     const rawMarkers = [];
-
-    for (const m of detectedSmall) {
+    for (const m of found.values()) {
       const cubeIdx = Math.floor(m.id / 5);
       if (cubeIdx < 0 || cubeIdx >= CUBES.length) continue;
       const cfg = CUBES[cubeIdx];
-      const scaledCorners = m.corners.map(p => [p[0] * inv, p[1] * inv]);
-      grouped.get(cfg.key).push({ id: m.id, corners: scaledCorners });
-      rawMarkers.push({ id: m.id, corners: scaledCorners, color: cfg.color });
+      grouped.get(cfg.key).push({ id: m.id, corners: m.corners });
+      rawMarkers.push({ id: m.id, corners: m.corners, color: cfg.color });
     }
 
-    const fpx = (focal35 / 36.0) * Math.max(cw, ch);
+    // Digital-Zoom der festen Hauptkamera = reiner Sensor-Crop → Brennweite in Pixeln skaliert linear
+    const zoom = camZoom || 1;
+    const fpx = (focal35 / 36.0) * Math.max(cw, ch) * zoom;
     K = cv.matFromArray(3, 3, cv.CV_64F, [fpx, 0, cw / 2, 0, fpx, ch / 2, 0, 0, 1]);
     dist = cv.matFromArray(5, 1, cv.CV_64F, [0, 0, 0, 0, 0]);
 
@@ -2062,11 +2397,14 @@ function analyzeCurrentCanvas(highRes = false) {
       timestamp: new Date(),
       isCapture: false,
       totalFrames: 1,
-      config: { cubeSize, markerSize, pivotZ, focal35, width: cw, height: ch },
+      config: { cubeSize, markerSize, pivotZ, focal35, zoom, width: cw, height: ch },
       rawMarkers,
+      hints,
       objects,
       relations,
       rejectReason,
+      viewPose: objects.length ? { R: objects[0].R, t: objects[0].t } : null,
+      upCam: gravityUpCam(),
     };
   } catch (e) {
     vMeta.textContent = `Fehler: ${e?.message || e}`;
@@ -2090,7 +2428,7 @@ function buildTextReport(s) {
   lines.push(`Messmodus:        ${s.isCapture ? `3s-Capture Durchschnitt (${s.totalFrames} gültige Frames)` : "Live-Einzelbild"}`);
   lines.push(`Messwürfel:       ${s.config.cubeSize} mm 2-Farb (Marker ${s.config.markerSize.toFixed(1)} mm · Marker 1: ID 0-4, Marker 2: ID 5-9, Marker 3: ID 10-14)`);
   lines.push(`Bezugshöhe Z:     ${s.config.pivotZ} mm`);
-  lines.push(`Brennweite:       ${s.config.focal35} mm (35mm-Äquiv.) | Auflösung: ${s.config.width}×${s.config.height} px`);
+  lines.push(`Brennweite:       ${s.config.focal35} mm (35mm-Äquiv.) | Zoom: ${(s.config.zoom || 1).toFixed(1)}× | Auflösung: ${s.config.width}×${s.config.height} px`);
   lines.push("");
   lines.push("KOORDINATEN-KONVENTION (Rechtssystem, Z nach oben):");
   lines.push("  +X = Rechts (3mm Orientierungsfase) | -Y = Vorne | +Y = Hinten | +Z = Oben");
@@ -2160,6 +2498,7 @@ function buildYamlReport(s) {
     `  marker_size_mm: ${num(s.config.markerSize, 2)}`,
     `  pivot_z_mm: ${num(s.config.pivotZ, 2)}`,
     `  focal_35mm: ${num(s.config.focal35, 2)}`,
+    `  camera_zoom: ${num(s.config.zoom || 1, 2)}`,
     "  resolution:",
     `    width: ${s.config.width}`,
     `    height: ${s.config.height}`,
@@ -2252,7 +2591,7 @@ function buildYamlReport(s) {
 }
 
 function triggerFileDownload(content, mime, ext) {
-  const d = lastSnapshot.timestamp;
+  const d = reportSnap().timestamp;
   const pad = n => String(n).padStart(2, "0");
   const fname = `messung_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}.${ext}`;
   const blob = new Blob([content], { type: mime });
@@ -2267,28 +2606,31 @@ function triggerFileDownload(content, mime, ext) {
 }
 
 function downloadReport() {
-  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+  const snap = reportSnap();
+  if (!snap || snap.objects.length === 0) {
     showToast("Erst Marker erfassen!");
     return;
   }
-  triggerFileDownload(buildTextReport(lastSnapshot), "text/plain;charset=utf-8", "txt");
+  triggerFileDownload(buildTextReport(snap), "text/plain;charset=utf-8", "txt");
 }
 
 function downloadYamlReport() {
-  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+  const snap = reportSnap();
+  if (!snap || snap.objects.length === 0) {
     showToast("Erst Marker erfassen!");
     return;
   }
-  triggerFileDownload(buildYamlReport(lastSnapshot), "application/yaml;charset=utf-8", "yaml");
+  triggerFileDownload(buildYamlReport(snap), "application/yaml;charset=utf-8", "yaml");
 }
 
 async function copyReport() {
-  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+  const snap = reportSnap();
+  if (!snap || snap.objects.length === 0) {
     showToast("Erst Marker erfassen!");
     return;
   }
   try {
-    await navigator.clipboard.writeText(buildTextReport(lastSnapshot));
+    await navigator.clipboard.writeText(buildTextReport(snap));
     showToast("Messbericht kopiert!");
   } catch (_) {
     downloadReport();
@@ -2380,15 +2722,17 @@ function loop(now) {
           capturePhase = "recording";
           captureStartMs = now;
           captureSamples = [];
+          captureGravity = [];
           lastDetectMs = 0; // sofort ersten Full-Res Sample nehmen
         }
       } else if (capturePhase === "recording") {
         if (freshSnap && freshSnap.objects.length > 0) {
           captureSamples.push(freshSnap);
+          if (freshSnap.upCam) captureGravity.push(freshSnap.upCam);
         }
         const elapsed = now - captureStartMs;
         const rem = Math.max(0, (CAPTURE_DURATION_MS - elapsed) / 1000);
-        capTitle.textContent = "Messe Durchschnitt (HD)…";
+        capTitle.textContent = "Messe (volle Auflösung)…";
         capSub.textContent = `Noch ${rem.toFixed(1)} s · ${captureSamples.length} Samples`;
         capBar.style.background = "var(--green)";
         capBar.style.width = `${clamp(elapsed / CAPTURE_DURATION_MS, 0, 1) * 100}%`;
@@ -2402,14 +2746,16 @@ function loop(now) {
             const avgSnap = aggregateCaptureSamples(captureSamples, captureSamples[captureSamples.length - 1]);
             lastSnapshot = avgSnap;
             capturePhase = "captured";
-            // Eingefrorenes Schlussbild einmalig mit gemitteltem Overlay zeichnen (danach 0 % CPU)
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            drawOverlay(avgSnap);
+            // Schlussbild sichern → 3D-Ansicht öffnet direkt im Foto-Modus (Kamera-Loop pausiert, 0 % CPU)
+            grabVideoTo(capturePhotoCanvas);
+            avgSnap.upCam = meanUnitVec(captureGravity) || gravityUpCam();
+            lastCaptureSnap = avgSnap;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             updateHUD(avgSnap);
-            btnCapture.textContent = "⏸ Fortsetzen";
-            btnCapture.classList.remove("recording", "active");
-            btnCapture.classList.add("primary");
-            showToast(`Fertig: Ø aus ${avgSnap.totalFrames} HD-Samples`);
+            btnCapture.textContent = "⏺ Capture";
+            btnCapture.classList.remove("recording", "active", "primary");
+            openView3D(avgSnap, capturePhotoCanvas);
+            showToast(`Fertig: Ø aus ${avgSnap.totalFrames} Samples`);
             return;
           }
         }
@@ -2460,7 +2806,7 @@ async function setTorch(enable) {
     return false;
   }
   try {
-    await track.applyConstraints({ advanced: [{ torch: enable }] });
+    await track.applyConstraints({ advanced: [{ torch: enable, ...(zoomSteps.length > 1 ? { zoom: camZoom } : {}) }] });
     torchOn = enable;
     updateTorchUI();
     return true;
@@ -2485,34 +2831,261 @@ function updateStartButtonsUI() {
   btnStartGuide.style.display = streaming ? "none" : "flex";
   btnStopCam.style.display = streaming ? "inline-flex" : "none";
   updateTorchUI();
+  updateZoomUI();
+  layoutFocusFrame();
 }
 
-async function startCamera() {
-  if (streaming || !cvReady) return;
+// --------- Kamera-Auswahl: feste Hauptkamera statt virtueller Dual/Triple-Kamera ---------
+// iPhone Pro: facingMode "environment" liefert die virtuelle Multi-Kamera, die bei Nähe automatisch auf Ultraweitwinkel/Makro
+// umschaltet → Bildsprung + falsche Brennweite. Die feste "Rückkamera" (Weitwinkel) wechselt nie die Linse.
+const CAM_DEVICE_KEY = "space3d_cam_device_v1";
+let camLocked = false;
+
+function camConstraints(deviceId) {
+  const base = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
+  return deviceId ? { ...base, deviceId: { exact: deviceId } } : { ...base, facingMode: { ideal: "environment" } };
+}
+
+function pickMainBackCamera(devices) {
+  const back = devices.filter(d => d.kind === "videoinput" && /back|rear|rück|environment/i.test(d.label || ""));
+  return back.find(d => !/ultra|tele|dual|triple|desk|schreibtisch|front/i.test(d.label)) || null;
+}
+
+async function openCameraStream() {
+  let saved = null;
+  try { saved = localStorage.getItem(CAM_DEVICE_KEY); } catch (_) {}
+  if (saved) {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(saved), audio: false });
+      camLocked = true;
+      return s;
+    } catch (_) {
+      try { localStorage.removeItem(CAM_DEVICE_KEY); } catch (_) {}
+    }
+  }
+  let s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(null), audio: false });
+  camLocked = false;
   try {
-    streamRef = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 },
-      },
-      audio: false
-    });
+    const pick = pickMainBackCamera(await navigator.mediaDevices.enumerateDevices());
+    if (pick) {
+      const curId = s.getVideoTracks()[0]?.getSettings?.().deviceId;
+      if (pick.deviceId !== curId) {
+        s.getTracks().forEach(t => t.stop());
+        try {
+          s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(pick.deviceId), audio: false });
+        } catch (_) {
+          s = await navigator.mediaDevices.getUserMedia({ video: camConstraints(null), audio: false });
+          return s;
+        }
+      }
+      camLocked = true;
+      try { localStorage.setItem(CAM_DEVICE_KEY, pick.deviceId); } catch (_) {}
+    }
+  } catch (_) {}
+  return s;
+}
+
+// --------- Digital-Zoom (nur auf fester Hauptkamera: reiner Crop → Intrinsik bleibt exakt berechenbar) ---------
+const btnZoom = document.getElementById("btnZoom");
+
+function updateZoomUI() {
+  const show = streaming && zoomSteps.length > 1;
+  btnZoom.style.display = show ? "inline-flex" : "none";
+  btnZoom.textContent = `${Math.round(camZoom * 10) / 10}×`;
+  btnZoom.classList.toggle("active", camZoom > 1.01);
+}
+
+function initZoomCaps() {
+  zoomSteps = [1];
+  camZoom = 1;
+  const track = streamRef?.getVideoTracks?.()[0];
+  const caps = track && typeof track.getCapabilities === "function" ? track.getCapabilities() : null;
+  if (camLocked && caps && caps.zoom && caps.zoom.max >= 1.9 && caps.zoom.min <= 1.01) {
+    zoomSteps = [1, 2];
+    if (caps.zoom.max >= 2.9) zoomSteps.push(3);
+    const cur = track.getSettings?.().zoom;
+    if (Number.isFinite(cur) && cur > 1.01) {
+      track.applyConstraints({ advanced: [{ zoom: 1 }] }).catch(() => {});
+    }
+  }
+  updateZoomUI();
+}
+
+async function cycleZoom() {
+  const track = streamRef?.getVideoTracks?.()[0];
+  if (!track || zoomSteps.length < 2) return;
+  if (capturePhase === "countdown" || capturePhase === "recording") {
+    showToast("Zoom während der Messung gesperrt");
+    return;
+  }
+  const idx = zoomSteps.findIndex(z => Math.abs(z - camZoom) < 0.05);
+  const next = zoomSteps[(idx + 1) % zoomSteps.length];
+  try {
+    await track.applyConstraints({ advanced: [{ zoom: next, ...(torchOn ? { torch: true } : {}) }] });
+    const got = track.getSettings?.().zoom;
+    camZoom = Number.isFinite(got) && got > 0 ? got : next;
+    if (capturePhase === "captured") handleCaptureTap();
+    showToast(`Zoom ${Math.round(camZoom * 10) / 10}×`);
+  } catch (_) {
+    zoomSteps = [1];
+    camZoom = 1;
+    showToast("Zoom von diesem Browser nicht unterstützt");
+  }
+  updateZoomUI();
+}
+btnZoom.addEventListener("click", cycleZoom);
+
+// --------- Zielmodus (Fadenkreuz-Bereich in voller Auflösung) ---------
+const FOCUS_KEY = "space3d_focus_v1";
+const btnFocus = document.getElementById("btnFocus");
+const focusFrameEl = document.getElementById("focusFrame");
+let focusMode = false;
+try { focusMode = localStorage.getItem(FOCUS_KEY) === "1"; } catch (_) {}
+
+function layoutFocusFrame() {
+  const on = focusMode && streaming && video.videoWidth > 0;
+  focusFrameEl.classList.toggle("on", on);
+  btnFocus.style.display = streaming ? "inline-flex" : "none";
+  btnFocus.classList.toggle("active", focusMode);
+  if (!on) return;
+  // Gleiche Abbildung wie object-fit: cover des Videos
+  const W = stageEl.clientWidth, H = stageEl.clientHeight;
+  const s = Math.max(W / video.videoWidth, H / video.videoHeight);
+  const px = `${Math.round(Math.min(video.videoWidth, video.videoHeight) * FOCUS_FRAC * s)}px`;
+  if (focusFrameEl.style.width !== px) { focusFrameEl.style.width = px; focusFrameEl.style.height = px; }
+}
+const stageEl = document.getElementById("stage");
+btnFocus.addEventListener("click", () => {
+  focusMode = !focusMode;
+  try { localStorage.setItem(FOCUS_KEY, focusMode ? "1" : "0"); } catch (_) {}
+  layoutFocusFrame();
+  lastDetectMs = 0;
+  showToast(focusMode ? "Zielmodus: nur Bereich um das Fadenkreuz, volle Auflösung" : "Ganzes Bild (Vorschau 640 px)");
+});
+window.addEventListener("resize", layoutFocusFrame);
+video.addEventListener("resize", layoutFocusFrame);
+video.addEventListener("loadedmetadata", layoutFocusFrame);
+
+// --------- Lagesensor (nur für die 3D-Darstellung: richtet das Bodenraster an der echten Schwerkraft aus) ---------
+let gravityUpDev = null;
+let gravityTs = 0;
+let motionRequested = false;
+
+function onDeviceOrientation(e) {
+  if (e.beta === null || e.gamma === null || e.beta === undefined) return;
+  // W3C: R = Rz(alpha)·Rx(beta)·Ry(gamma) → Welt-"Oben" im Gerätesystem (x rechts, y oben, z aus dem Display)
+  const b = deg2rad(e.beta), g = deg2rad(e.gamma);
+  gravityUpDev = [-Math.sin(g) * Math.cos(b), Math.sin(b), Math.cos(g) * Math.cos(b)];
+  gravityTs = performance.now();
+}
+
+// Muss synchron im Klick-Handler aufgerufen werden (iOS-Berechtigungsdialog)
+function enableMotionSensor() {
+  if (motionRequested) return;
+  motionRequested = true;
+  const DOE = window.DeviceOrientationEvent;
+  if (!DOE) return;
+  const attach = () => window.addEventListener("deviceorientation", onDeviceOrientation);
+  if (typeof DOE.requestPermission === "function") {
+    DOE.requestPermission().then(r => { if (r === "granted") attach(); }).catch(() => {});
+  } else {
+    attach();
+  }
+}
+
+// Welt-"Oben" im OpenCV-Kamerasystem (x rechts, y unten, z Blickrichtung) unter Berücksichtigung der Bildschirmdrehung
+function gravityUpCam() {
+  if (!gravityUpDev || performance.now() - gravityTs > 1500) return null;
+  const a = deg2rad((screen.orientation && Number.isFinite(screen.orientation.angle)) ? screen.orientation.angle : (window.orientation || 0));
+  const [dx, dy, dz] = gravityUpDev;
+  const sx = dx * Math.cos(a) - dy * Math.sin(a);
+  const sy = dx * Math.sin(a) + dy * Math.cos(a);
+  return [sx, -sy, -dz];
+}
+
+function meanUnitVec(list) {
+  if (!list || !list.length) return null;
+  const m = [0, 0, 0];
+  for (const v of list) { m[0] += v[0]; m[1] += v[1]; m[2] += v[2]; }
+  const l = Math.hypot(m[0], m[1], m[2]);
+  return l > 1e-6 ? [m[0] / l, m[1] / l, m[2] / l] : null;
+}
+
+// Minimale Drehung um den Würfelmittelpunkt, sodass +Z des Würfels exakt nach oben zeigt (nur bei ≤ 15° Abweichung,
+// d. h. Würfel steht auf einer waagerechten Fläche) — korrigiert sichtbare Kippfehler der Einzelbild-Pose
+function levelPoseWithGravity(R, t, up, cubeSize) {
+  const z = [R[2], R[5], R[8]];
+  const ang = Math.acos(clamp(z[0] * up[0] + z[1] * up[1] + z[2] * up[2], -1, 1));
+  if (!(ang > 1e-4) || ang > deg2rad(15)) return null;
+  const ax = [z[1] * up[2] - z[2] * up[1], z[2] * up[0] - z[0] * up[2], z[0] * up[1] - z[1] * up[0]];
+  const al = Math.hypot(ax[0], ax[1], ax[2]) || 1;
+  const k = [ax[0] / al, ax[1] / al, ax[2] / al];
+  const rot = v => {
+    const c = Math.cos(ang), s = Math.sin(ang), d = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+    return [
+      v[0] * c + (k[1] * v[2] - k[2] * v[1]) * s + k[0] * d * (1 - c),
+      v[1] * c + (k[2] * v[0] - k[0] * v[2]) * s + k[1] * d * (1 - c),
+      v[2] * c + (k[0] * v[1] - k[1] * v[0]) * s + k[2] * d * (1 - c),
+    ];
+  };
+  const cx = rot([R[0], R[3], R[6]]), cy = rot([R[1], R[4], R[7]]), cz = rot([R[2], R[5], R[8]]);
+  const R2 = [cx[0], cy[0], cz[0], cx[1], cy[1], cz[1], cx[2], cy[2], cz[2]];
+  const h = cubeSize / 2;
+  const ctr = [R[2] * h + t[0], R[5] * h + t[1], R[8] * h + t[2]];
+  return { R: R2, t: [ctr[0] - R2[2] * h, ctr[1] - R2[5] * h, ctr[2] - R2[8] * h], tiltDeg: rad2deg(ang) };
+}
+
+// --------- Bildschirm wach halten, solange die Kamera läuft ---------
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator) || wakeLock || !streaming || document.hidden) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch (_) {}
+}
+function releaseWakeLock() {
+  try { if (wakeLock) wakeLock.release(); } catch (_) {}
+  wakeLock = null;
+}
+
+function revealVideoWhenStable() {
+  const show = () => { if (streaming) video.classList.add("ready"); };
+  if (typeof video.requestVideoFrameCallback === "function") {
+    video.requestVideoFrameCallback(() => video.requestVideoFrameCallback(show));
+    setTimeout(show, 600);
+  } else {
+    setTimeout(show, 150);
+  }
+}
+
+let cameraStarting = false;
+async function startCamera() {
+  if (streaming || !cvReady || cameraStarting) return;
+  enableMotionSensor();
+  cameraStarting = true;
+  try {
+    video.classList.remove("ready");
+    streamRef = await openCameraStream();
     video.srcObject = streamRef;
     await video.play();
     streaming = true;
     torchOn = false;
     lastDetectMs = 0;
+    initZoomCaps();
     setGuideVisible(false);
     resetCaptureUI();
     btnCapture.disabled = false;
     updateStartButtonsUI();
+    revealVideoWhenStable();
+    requestWakeLock();
     scheduleNextLoop(0);
   } catch (err) {
     statusEl.textContent = "HTTPS nötig";
     statusEl.className = "badge warn";
     vMeta.textContent = `Kamera blockiert: ${err.message}`;
+  } finally {
+    cameraStarting = false;
   }
 }
 
@@ -2521,6 +3094,8 @@ function stopCamera() {
   streaming = false;
   cancelLoopTimers();
   resetCaptureUI();
+  releaseWakeLock();
+  video.classList.remove("ready");
   if (torchOn) {
     const track = streamRef?.getVideoTracks?.()[0];
     if (track && typeof track.applyConstraints === "function") {
@@ -2531,6 +3106,8 @@ function stopCamera() {
   if (streamRef) streamRef.getTracks().forEach(t => t.stop());
   streamRef = null;
   video.srcObject = null;
+  zoomSteps = [1];
+  camZoom = 1;
   btnCapture.disabled = true;
   statusEl.textContent = "Bereit";
   statusEl.className = "badge ok";
@@ -2546,6 +3123,7 @@ btnTorch.addEventListener("click", () => {
   setTorch(!torchOn);
 });
 document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && streaming) requestWakeLock();
   if (!document.hidden && streaming && capturePhase === "idle") {
     lastDetectMs = 0;
     scheduleNextLoop(0);
@@ -2570,6 +3148,7 @@ function handleCaptureTap() {
     scheduleNextLoop(0);
   } else {
     // Abbruch während Countdown/Recording ODER "Weiter" nach Capture
+    if (v3dOpen) closeView3D();
     resetCaptureUI();
     lastDetectMs = 0;
     scheduleNextLoop(0);
@@ -2947,18 +3526,188 @@ const v3dHint = document.getElementById("v3dHint");
 const btnClose3D = document.getElementById("btnClose3D");
 const btn3dDeltas = document.getElementById("btn3dDeltas");
 const btn3dCam = document.getElementById("btn3dCam");
+const btn3dAxes = document.getElementById("btn3dAxes");
+const v3dAngleInfo = document.getElementById("v3dAngleInfo");
+const btn3dHome = document.getElementById("btn3dHome");
 
 let v3dOpen = false;
 let v3dScene = null;
-let v3dAz = 34;
-let v3dEl = 28;
-let v3dZoom = 1.0;
-let v3dShowDeltas = true;
-let v3dShowCam = true;
-let v3dRefPlane = "none"; // "none" | "xy" (+Z) | "xz" (-Y) | "yz" (+X)
+let v3dShowDeltas = false;
+let v3dShowCam = false;
+let v3dShowAxes = false;
+// Winkel-Modus: "tri" = Innenwinkel des Dreiecks der 3 Würfelmittelpunkte | "xy"/"xz"/"yz" = Flächenwinkel je Würfelpaar | "none"
+let v3dAngleMode = "tri";
+let v3dRefPlane = "none"; // abgeleitet: Flächen-Ebene oder "none"
+const V3D_ANGLE_INFO = {
+  tri: "△ Innenwinkel des Dreiecks aus den 3 Würfelmittelpunkten (echte 3D-Winkel, unabhängig von der Drehung der Würfel).",
+  xy: "▱ Winkel zwischen den XY-Flächen (Oberseiten, +Z-Normale) je Würfelpaar.",
+  xz: "▱ Winkel zwischen den XZ-Flächen (Vorderseiten, -Y-Normale) je Würfelpaar.",
+  yz: "▱ Winkel zwischen den YZ-Flächen (Fasen-Seiten, +X-Normale) je Würfelpaar.",
+  none: "Nur Abstände (Mittelpunkt ↔ Mittelpunkt).",
+};
 let v3dPointers = new Map();
 let v3dPinchStart = null;
-let v3dDragStart = null;
+let v3dDragLast = null;
+let v3dLastTap = 0;
+// Freie Ansichtskamera: Basis (right/up/fwd) + Pivot T + Augen-Offset o im Kamera-Basissystem (eye = T + right*o0 + up*o1 + fwd*o2)
+let v3dView = null;
+let v3dAnim = null;
+let v3dAtCamPose = false;
+let v3dFadeT0 = 0;
+let v3dRaf = null;
+const V3D_FADE_MS = 750;
+
+const vSub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const vDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const vCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const vNorm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const vLerp = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+
+function rotAxis(v, k, ang) {
+  const c = Math.cos(ang), s = Math.sin(ang), d = vDot(k, v), kx = vCross(k, v);
+  return [
+    v[0] * c + kx[0] * s + k[0] * d * (1 - c),
+    v[1] * c + kx[1] * s + k[1] * d * (1 - c),
+    v[2] * c + kx[2] * s + k[2] * d * (1 - c),
+  ];
+}
+
+function makeView(eye, right, up, fwd, T, extra = {}) {
+  const d = vSub(eye, T);
+  return { right, up, fwd, T: T.slice(), o: [vDot(d, right), vDot(d, up), vDot(d, fwd)], ...extra };
+}
+function viewEye(v) {
+  return [
+    v.T[0] + v.right[0] * v.o[0] + v.up[0] * v.o[1] + v.fwd[0] * v.o[2],
+    v.T[1] + v.right[1] * v.o[0] + v.up[1] * v.o[1] + v.fwd[1] * v.o[2],
+    v.T[2] + v.right[2] * v.o[0] + v.up[2] * v.o[1] + v.fwd[2] * v.o[2],
+  ];
+}
+
+// Quaternion aus der Rotationsmatrix mit Zeilen [right, up, -fwd] (rechtshändig) & zurück — für weiche Kamerafahrten
+function basisToQuat(right, up, fwd) {
+  const m00 = right[0], m01 = right[1], m02 = right[2];
+  const m10 = up[0], m11 = up[1], m12 = up[2];
+  const m20 = -fwd[0], m21 = -fwd[1], m22 = -fwd[2];
+  const tr = m00 + m11 + m22;
+  let w, x, y, z;
+  if (tr > 0) {
+    const S = Math.sqrt(tr + 1) * 2; w = 0.25 * S; x = (m21 - m12) / S; y = (m02 - m20) / S; z = (m10 - m01) / S;
+  } else if (m00 > m11 && m00 > m22) {
+    const S = Math.sqrt(1 + m00 - m11 - m22) * 2; w = (m21 - m12) / S; x = 0.25 * S; y = (m01 + m10) / S; z = (m02 + m20) / S;
+  } else if (m11 > m22) {
+    const S = Math.sqrt(1 + m11 - m00 - m22) * 2; w = (m02 - m20) / S; x = (m01 + m10) / S; y = 0.25 * S; z = (m12 + m21) / S;
+  } else {
+    const S = Math.sqrt(1 + m22 - m00 - m11) * 2; w = (m10 - m01) / S; x = (m02 + m20) / S; y = (m12 + m21) / S; z = 0.25 * S;
+  }
+  return [w, x, y, z];
+}
+function quatToBasis([w, x, y, z]) {
+  return {
+    right: [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+    up: [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+    fwd: [-(2 * (x * z - y * w)), -(2 * (y * z + x * w)), -(1 - 2 * (x * x + y * y))],
+  };
+}
+function quatSlerp(a, b, k) {
+  let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  let bb = b;
+  if (d < 0) { d = -d; bb = b.map(v => -v); }
+  let wa, wb;
+  if (d > 0.9995) { wa = 1 - k; wb = k; }
+  else { const th = Math.acos(d), sn = Math.sin(th); wa = Math.sin((1 - k) * th) / sn; wb = Math.sin(k * th) / sn; }
+  const q = [a[0] * wa + bb[0] * wb, a[1] * wa + bb[1] * wb, a[2] * wa + bb[2] * wb, a[3] * wa + bb[3] * wb];
+  const l = Math.hypot(q[0], q[1], q[2], q[3]) || 1;
+  return q.map(v => v / l);
+}
+
+// Brennweite in CSS-Pixeln: identisch zur echten Kamera inkl. object-fit: cover → Kamerasicht liegt exakt über dem Standbild
+function v3dFocal(W, H) {
+  const cfg = v3dScene?.snap?.config;
+  if (cfg && cfg.width && cfg.height && cfg.focal35) {
+    const fpx = (cfg.focal35 / 36.0) * Math.max(cfg.width, cfg.height) * (cfg.zoom || 1);
+    return fpx * Math.max(W / cfg.width, H / cfg.height);
+  }
+  return Math.min(W, H) * 1.12;
+}
+function v3dCanvasSize() {
+  const rect = view3dCanvas.getBoundingClientRect();
+  return { W: Math.max(200, Math.round(rect.width)), H: Math.max(180, Math.round(rect.height)) };
+}
+
+function camPoseView(scene) {
+  const vp = scene.viewPose;
+  if (!vp) return null;
+  const { R, t } = vp;
+  const eye = matTmulVec(R, [-t[0], -t[1], -t[2]]);
+  // OpenCV-Kamera: Zeilen von R = Kamera-x (rechts), -y (oben), z (Blickrichtung) in Würfel-Koordinaten
+  return makeView(eye, [R[0], R[1], R[2]], [-R[3], -R[4], -R[5]], [R[6], R[7], R[8]], scene.center, { isCam: true });
+}
+
+function presetView(scene, azDeg, elDeg) {
+  const { W, H } = v3dCanvasSize();
+  const az = deg2rad(azDeg), el = deg2rad(elDeg);
+  const dist = scene.span * 2.3 * (v3dFocal(W, H) / (Math.min(W, H) * 1.12));
+  const c = scene.center;
+  const eye = [c[0] + dist * Math.cos(el) * Math.sin(az), c[1] - dist * Math.cos(el) * Math.cos(az), c[2] + dist * Math.sin(el)];
+  const fwd = vNorm(vSub(c, eye));
+  const worldUp = Math.abs(fwd[2]) > 0.985 ? [0, 1, 0] : [0, 0, 1];
+  const right = vNorm(vCross(fwd, worldUp));
+  const up = vCross(right, fwd);
+  return makeView(eye, right, up, fwd, c);
+}
+
+const V3D_PRESETS = { iso: [34, 28], top: [0, 88], front: [0, 4], right: [90, 4] };
+function viewForPreset(p) {
+  if (!v3dScene) return null;
+  if (p === "cam") return camPoseView(v3dScene) || presetView(v3dScene, ...V3D_PRESETS.iso);
+  return presetView(v3dScene, ...(V3D_PRESETS[p] || V3D_PRESETS.iso));
+}
+
+function animateViewTo(target, dur = 520) {
+  if (!target) return;
+  if (!v3dView) { v3dView = target; v3dAtCamPose = Boolean(target.isCam); requestV3dRender(); return; }
+  v3dAtCamPose = false;
+  v3dAnim = {
+    from: { q: basisToQuat(v3dView.right, v3dView.up, v3dView.fwd), eye: viewEye(v3dView), T: v3dView.T.slice() },
+    to: { q: basisToQuat(target.right, target.up, target.fwd), eye: viewEye(target), T: target.T.slice() },
+    target, t0: performance.now(), dur,
+  };
+  requestV3dRender();
+}
+
+function setPresetActive(p) {
+  document.querySelectorAll("#v3dViewSeg button").forEach(b => b.classList.toggle("active", b.dataset.preset === p));
+  btn3dHome.classList.toggle("active", p === "cam");
+}
+
+function goHomeView() {
+  v3dFadeT0 = performance.now() - V3D_FADE_MS;
+  animateViewTo(viewForPreset("cam"));
+  setPresetActive("cam");
+}
+
+function applyAngleMode(mode) {
+  const hasTri = Boolean(v3dScene && v3dScene.triangle);
+  const hasPairs = Boolean(v3dScene && v3dScene.pairs.length);
+  if (mode === "tri" && !hasTri) mode = "none";
+  if (mode !== "tri" && mode !== "none" && !hasPairs) mode = "none";
+  v3dRefPlane = mode === "xy" || mode === "xz" || mode === "yz" ? mode : "none";
+  document.querySelectorAll("#v3dAngleSeg button").forEach(b => {
+    const a = b.dataset.angle;
+    b.disabled = (a === "tri" && !hasTri) || (a !== "tri" && a !== "none" && !hasPairs);
+    b.classList.toggle("active", a === mode);
+  });
+  v3dAngleInfo.textContent = !hasPairs
+    ? "Winkel zwischen Würfeln ab 2 Würfeln (Mittelpunkte-Dreieck ab 3)."
+    : V3D_ANGLE_INFO[mode];
+  return mode;
+}
+
+function requestV3dRender() {
+  if (v3dRaf !== null || !v3dOpen) return;
+  v3dRaf = requestAnimationFrame(() => { v3dRaf = null; renderView3D(); });
+}
 
 function planeAngleForRel(r, plane) {
   if (plane === "xz") return { deg: r.angleXZDeg ?? 0, tag: "XZ (-Y)" };
@@ -3013,8 +3762,17 @@ function buildScene3D(snap) {
     cubes.push({ obj: o, pos, center3D, R });
   }
 
-  // Kamera im Referenz-Koordinatensystem von Marker A
-  const camPos = ref.camPosMm ? ref.camPosMm.slice() : [0, -300, 150];
+  // Darstellung: Pose von Würfel A per Lagesensor (Schwerkraft) waagerecht ausrichten — Messwerte bleiben unverändert
+  let viewPose = snap.viewPose || (ref.R && ref.t ? { R: ref.R, t: ref.t } : null);
+  let leveledDeg = null;
+  if (viewPose && snap.upCam) {
+    const lv = levelPoseWithGravity(viewPose.R, viewPose.t, snap.upCam, cubeSize);
+    if (lv) { viewPose = { R: lv.R, t: lv.t }; leveledDeg = lv.tiltDeg; }
+  }
+  // Kamera im Referenz-Koordinatensystem von Marker A (konsistent zur Ansichtspose)
+  const camPos = viewPose
+    ? matTmulVec(viewPose.R, [-viewPose.t[0], -viewPose.t[1], -viewPose.t[2]])
+    : (ref.camPosMm ? ref.camPosMm.slice() : [0, -300, 150]);
 
   // Bounding-Box aller Würfel berechnen (für Auto-Framing & Bodenraster)
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -3043,70 +3801,120 @@ function buildScene3D(snap) {
   })).filter(p => p.a && p.b);
 
   const triangle = computeTriangleFromSnapshot(snap);
-  return { snap, cubeSize, cubes, pairs, triangle, camPos, center, span, gridStep };
+  return { snap, cubeSize, cubes, pairs, triangle, camPos, center, span, gridStep, viewPose, leveledDeg };
+}
+
+// Scan-Qualität aus Streuung (Capture: ±σ über alle Samples), Reprojektionsfehler & Anzahl Flächen/Samples
+function scanQuality(snap) {
+  const objs = snap.objects;
+  const rms = Math.max(...objs.map(o => o.rms));
+  const faces = Math.min(...objs.map(o => o.ids.length));
+  if (!snap.isCapture) {
+    const level = rms <= 1.5 && faces >= 2 ? "ok" : "poor";
+    return { level, title: "Live · Einzelbild", sub: `RMS ${rms.toFixed(1)} px · ${faces} Fl. · für ±σ Capture nutzen` };
+  }
+  const angStd = Math.max(...objs.map(o => Math.max(o.azimStd ?? 0, o.elevStd ?? 0)));
+  const distStds = [...snap.relations.map(r => r.distStdMm), ...objs.map(o => o.distStdMm)].filter(v => Number.isFinite(v));
+  const relStds = snap.relations.map(r => r.distStdMm).filter(v => Number.isFinite(v));
+  const mmStd = relStds.length ? Math.max(...relStds) : (distStds.length ? Math.max(...distStds) : null);
+  const samples = Math.min(...objs.map(o => o.samples));
+  let level = "poor";
+  if (angStd <= 0.5 && rms <= 1.5 && samples >= 10) level = "good";
+  else if (angStd <= 1.5 && rms <= 3.0 && samples >= 5) level = "ok";
+  const names = { good: "Gut", ok: "Mittel", poor: "Schwach" };
+  return {
+    level,
+    title: `Qualität ${names[level]}`,
+    sub: `±${angStd.toFixed(2)}°${mmStd !== null ? ` · ±${mmStd.toFixed(1)} mm` : ""} · RMS ${rms.toFixed(1)} px · N=${samples}`,
+  };
 }
 
 function renderView3DCards(scene) {
-  const { snap, triangle } = scene;
-  v3dBadge.textContent = `${snap.isCapture ? "Capture Ø" : "Live"} · ${snap.objects.length} Marker`;
-  if (triangle) {
-    const b90 = angleCheckBadge(triangle.best90.angleDeg);
-    v3dCards.innerHTML = `<div class="v3d-card" style="border-color:rgba(192,132,252,0.55);background:rgba(168,85,247,0.12);padding:6px 10px;margin-bottom:6px;">
-      <strong>📐 3-Punkt-Winkel</strong>
-      <span class="${b90.cls}">${b90.text}</span><br>
-      ${triangle.corners.map(c => `<span style="color:${c.color};font-weight:700;">∠ ${c.label}:</span> <strong>${c.angleDeg.toFixed(1)}°</strong>`).join(" · ")}
-    </div>`;
-  } else {
-    v3dCards.innerHTML = "";
+  const { snap, pairs } = scene;
+  v3dBadge.textContent = `${snap.isCapture ? "Capture Ø" : "Live"} · ${snap.objects.length}`;
+  const q = scanQuality(snap);
+  const qEl = document.getElementById("v3dQuality");
+  qEl.className = `v3d-quality q-${q.level}`;
+  qEl.innerHTML = `<div class="q-top">● ${q.title}</div><div class="q-sub">${q.sub}</div>`;
+  let html = "";
+  if (pairs.length) {
+    html += pairs.map(({ rel: r }) => {
+      let angTxt = "";
+      if (v3dRefPlane !== "none") {
+        const pa = planeAngleForRel(r, v3dRefPlane);
+        const b = angleCheckBadge(pa.deg);
+        angTxt = `<span>${pa.tag.split(" ")[0]} ${pa.deg.toFixed(1)}°<span class="${b.cls}">${b.short}</span></span>`;
+      }
+      return `<div class="v3d-rel">
+        <span>${r.aLabel.replace("Marker ", "M")} ↔ ${r.bLabel.replace("Marker ", "M")}</span>
+        <span><b>${r.distMm.toFixed(1)} mm</b>${r.distStdMm !== null ? ` <span style="color:var(--muted);">±${r.distStdMm.toFixed(1)}</span>` : ""}</span>
+        ${angTxt}
+      </div>`;
+    }).join("");
   }
+  // Kugelkoordinaten der Kamera je Würfel (dezent)
+  html += snap.objects.map(o => {
+    const sa = o.azimStd !== null ? `<span class="sig">±${o.azimStd.toFixed(1)}</span>` : "";
+    const se = o.elevStd !== null ? `<span class="sig">±${o.elevStd.toFixed(1)}</span>` : "";
+    return `<div class="v3d-obj">
+      <span style="color:${o.color};font-weight:700;">${o.label.replace("Marker ", "M")}</span>
+      <span>Az ${fmtSigned(o.azim, 1)}°${sa}</span>
+      <span>El ${fmtSigned(o.elev, 1)}°${se}</span>
+      <span>${o.distCm.toFixed(1)} cm</span>
+    </div>`;
+  }).join("");
+  v3dCards.innerHTML = html;
 }
 
 function renderView3D() {
   if (!v3dOpen || !v3dScene) return;
+  const now = performance.now();
 
-  const rect = view3dCanvas.getBoundingClientRect();
+  const { W, H } = v3dCanvasSize();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const W = Math.max(200, Math.round(rect.width));
-  const H = Math.max(180, Math.round(rect.height));
   if (view3dCanvas.width !== Math.round(W * dpr) || view3dCanvas.height !== Math.round(H * dpr)) {
     view3dCanvas.width = Math.round(W * dpr);
     view3dCanvas.height = Math.round(H * dpr);
   }
   v3dCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  v3dCtx.globalAlpha = 1;
   v3dCtx.clearRect(0, 0, W, H);
 
-  const { cubeSize, cubes, pairs, triangle, camPos, center, span, gridStep } = v3dScene;
-  const planeInfo = v3dRefPlane === "none" ? "" : ` · Ebene: ${v3dRefPlane.toUpperCase()}`;
-  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster: ${gridStep} mm${planeInfo}`;
+  const { cubeSize, cubes, pairs, triangle, camPos, gridStep } = v3dScene;
+  const lvl = v3dScene.leveledDeg;
+  v3dHint.textContent = `Ziehen = Drehen · 2 Finger = Zoom · Raster ${gridStep} mm${lvl !== null ? ` · Lage ✓ (${lvl.toFixed(1)}°)` : ""}`;
 
-  // Orbit-Kamera um Szenen-Zentrum
-  const az = deg2rad(v3dAz), el = deg2rad(v3dEl);
-  const baseDist = span * 2.15;
-  const dist = clamp(baseDist / v3dZoom, cubeSize * 1.4, span * 10);
-  const eye = [
-    center[0] + dist * Math.cos(el) * Math.sin(az),
-    center[1] - dist * Math.cos(el) * Math.cos(az),
-    center[2] + dist * Math.sin(el),
-  ];
+  // Kamerafahrt (Slerp der Blickrichtung + lineare Augenposition)
+  if (v3dAnim) {
+    const k = clamp((now - v3dAnim.t0) / v3dAnim.dur, 0, 1);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const b = quatToBasis(quatSlerp(v3dAnim.from.q, v3dAnim.to.q, e));
+    v3dView = makeView(vLerp(v3dAnim.from.eye, v3dAnim.to.eye, e), b.right, b.up, b.fwd, vLerp(v3dAnim.from.T, v3dAnim.to.T, e));
+    if (k >= 1) {
+      v3dView = v3dAnim.target;
+      v3dAtCamPose = Boolean(v3dAnim.target.isCam);
+      v3dAnim = null;
+    }
+  }
+  if (!v3dView) v3dView = viewForPreset("cam");
+  const { right, up, fwd } = v3dView;
+  const eye = viewEye(v3dView);
 
-  let fwd = [center[0] - eye[0], center[1] - eye[1], center[2] - eye[2]];
-  const fl = Math.hypot(fwd[0], fwd[1], fwd[2]) || 1;
-  fwd = [fwd[0] / fl, fwd[1] / fl, fwd[2] / fl];
-  let worldUp = Math.abs(fwd[2]) > 0.985 ? [0, 1, 0] : [0, 0, 1];
-  let right = [
-    fwd[1] * worldUp[2] - fwd[2] * worldUp[1],
-    fwd[2] * worldUp[0] - fwd[0] * worldUp[2],
-    fwd[0] * worldUp[1] - fwd[1] * worldUp[0],
-  ];
-  const rl = Math.hypot(right[0], right[1], right[2]) || 1;
-  right = [right[0] / rl, right[1] / rl, right[2] / rl];
-  const up = [
-    right[1] * fwd[2] - right[2] * fwd[1],
-    right[2] * fwd[0] - right[0] * fwd[2],
-    right[0] * fwd[1] - right[1] * fwd[0],
-  ];
+  // Foto-Modus: Standbild exakt aus Kamerasicht, darüber das 3D-Modell als transparente Überlagerung (blendet sanft ein)
+  const fadeK = clamp((now - v3dFadeT0) / V3D_FADE_MS, 0, 1);
+  const photoOk = v3dAtCamPose && Boolean(v3dPhoto);
+  const sceneA = photoOk ? clamp(fadeK * 1.4, 0, 1) : 1;
+  if (photoOk) {
+    const s = Math.max(W / v3dPhoto.width, H / v3dPhoto.height);
+    const dw = v3dPhoto.width * s, dh = v3dPhoto.height * s;
+    v3dCtx.drawImage(v3dPhoto, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    // Leicht abdunkeln, damit Linien & Labels lesbar bleiben
+    v3dCtx.fillStyle = "rgba(6,10,18,0.22)";
+    v3dCtx.fillRect(0, 0, W, H);
+  }
+  v3dCtx.globalAlpha = sceneA;
 
-  const focal = Math.min(W, H) * 1.12;
+  const focal = v3dFocal(W, H);
   const ox = W / 2, oy = H / 2;
   function proj(p) {
     const dx = p[0] - eye[0], dy = p[1] - eye[1], dz = p[2] - eye[2];
@@ -3124,21 +3932,23 @@ function renderView3D() {
   }
 
   // 1. Referenz-Bodenraster (Z = 0 Ebene von Marker 1)
+  const { center, span } = v3dScene;
   const gridHalf = Math.ceil((span * 0.95) / gridStep) * gridStep;
   const gCx = Math.round(center[0] / gridStep) * gridStep;
   const gCy = Math.round(center[1] / gridStep) * gridStep;
   v3dCtx.save();
+  if (photoOk) v3dCtx.globalAlpha = sceneA * 0.45;
   for (let gx = gCx - gridHalf; gx <= gCx + gridHalf; gx += gridStep) {
     const a = proj([gx, gCy - gridHalf, 0]), b = proj([gx, gCy + gridHalf, 0]);
     if (!a || !b) continue;
-    v3dCtx.strokeStyle = gx === 0 ? "rgba(34,197,94,0.38)" : "rgba(148,163,184,0.14)";
+    v3dCtx.strokeStyle = gx === 0 ? "rgba(34,197,94,0.32)" : "rgba(148,163,184,0.10)";
     v3dCtx.lineWidth = gx === 0 ? 1.5 : 1;
     v3dCtx.beginPath(); v3dCtx.moveTo(a[0], a[1]); v3dCtx.lineTo(b[0], b[1]); v3dCtx.stroke();
   }
   for (let gy = gCy - gridHalf; gy <= gCy + gridHalf; gy += gridStep) {
     const a = proj([gCx - gridHalf, gy, 0]), b = proj([gCx + gridHalf, gy, 0]);
     if (!a || !b) continue;
-    v3dCtx.strokeStyle = gy === 0 ? "rgba(239,68,68,0.38)" : "rgba(148,163,184,0.14)";
+    v3dCtx.strokeStyle = gy === 0 ? "rgba(239,68,68,0.32)" : "rgba(148,163,184,0.10)";
     v3dCtx.lineWidth = gy === 0 ? 1.5 : 1;
     v3dCtx.beginPath(); v3dCtx.moveTo(a[0], a[1]); v3dCtx.lineTo(b[0], b[1]); v3dCtx.stroke();
   }
@@ -3213,10 +4023,10 @@ function renderView3D() {
       v3dCtx.beginPath();
       item.p2.forEach((pt, idx) => idx === 0 ? v3dCtx.moveTo(pt[0], pt[1]) : v3dCtx.lineTo(pt[0], pt[1]));
       v3dCtx.closePath();
-      v3dCtx.globalAlpha = 0.16;
+      v3dCtx.globalAlpha = 0.16 * sceneA;
       v3dCtx.fillStyle = item.color;
       v3dCtx.fill();
-      v3dCtx.globalAlpha = 0.72;
+      v3dCtx.globalAlpha = 0.72 * sceneA;
       v3dCtx.strokeStyle = item.color;
       v3dCtx.lineWidth = 1.6;
       v3dCtx.stroke();
@@ -3226,6 +4036,19 @@ function renderView3D() {
       v3dCtx.beginPath();
       p2.forEach((pt, idx) => idx === 0 ? v3dCtx.moveTo(pt[0], pt[1]) : v3dCtx.lineTo(pt[0], pt[1]));
       v3dCtx.closePath();
+      if (photoOk) {
+        // Echter Würfel bleibt im Foto sichtbar: nur farbiger Glas-Schimmer + Kanten
+        v3dCtx.save();
+        v3dCtx.globalAlpha = sceneA * 0.18;
+        v3dCtx.fillStyle = f.isChamfer ? "#f59e0b" : c.obj.color;
+        v3dCtx.fill();
+        v3dCtx.globalAlpha = sceneA * 0.95;
+        v3dCtx.strokeStyle = f.isChamfer ? "#fde68a" : c.obj.color;
+        v3dCtx.lineWidth = 1.6;
+        v3dCtx.stroke();
+        v3dCtx.restore();
+        continue;
+      }
       v3dCtx.fillStyle = f.fill;
       v3dCtx.fill();
       v3dCtx.strokeStyle = f.isChamfer ? "#fef08a" : "#1e293b";
@@ -3297,13 +4120,15 @@ function renderView3D() {
   const axLen = cubeSize * 0.95;
   const normLen = cubeSize * 1.55;
   for (const c of cubes) {
-    drawArrow(toWorld(c, [h, 0, 0]), toWorld(c, [h + axLen * 0.7, 0, 0]), "#ef4444", "+X");
-    drawArrow(toWorld(c, [0, -h, 0]), toWorld(c, [0, -h - axLen * 0.7, 0]), "#22c55e", "-Y");
-    drawArrow(toWorld(c, [0, 0, cubeSize]), toWorld(c, [0, 0, cubeSize + normLen * 0.55]), "#60a5fa", "+Z");
+    if (v3dShowAxes) {
+      drawArrow(toWorld(c, [h, 0, 0]), toWorld(c, [h + axLen * 0.7, 0, 0]), "#ef4444", "+X");
+      drawArrow(toWorld(c, [0, -h, 0]), toWorld(c, [0, -h - axLen * 0.7, 0]), "#22c55e", "-Y");
+      drawArrow(toWorld(c, [0, 0, cubeSize]), toWorld(c, [0, 0, cubeSize + normLen * 0.55]), "#60a5fa", "+Z");
+    }
 
-    const topPt = proj(toWorld(c, [0, 0, cubeSize + normLen * 0.55 + 12]));
+    const topPt = proj(toWorld(c, [0, 0, v3dShowAxes ? cubeSize + normLen * 0.55 + 12 : cubeSize * 1.45]));
     if (topPt) {
-      const txt = c.obj.label;
+      const txt = c.obj.label.replace("Marker ", "M");
       v3dCtx.save();
       v3dCtx.font = "700 11.5px -apple-system, system-ui, sans-serif";
       const tw = v3dCtx.measureText(txt).width + 12;
@@ -3320,7 +4145,7 @@ function renderView3D() {
   }
 
   // 3b. 3-Punkt-Winkel / Dreieck (Mittelpunkte, unabhängig von Würfeldrehung!)
-  if (triangle) {
+  if (triangle && v3dAngleMode === "tri") {
     const tPts = triangle.corners.map(c => proj(c.pt));
     if (tPts.every(Boolean)) {
       v3dCtx.save();
@@ -3489,127 +4314,209 @@ function renderView3D() {
       v3dCtx.restore();
     }
   }
+  v3dCtx.globalAlpha = 1;
+  if (v3dAnim || (photoOk && sceneA < 1)) requestV3dRender();
 }
 
-function openView3D() {
-  if (!lastSnapshot || lastSnapshot.objects.length === 0) {
+function drawHomeThumb() {
+  const c = document.getElementById("v3dHomeThumb");
+  const g = c.getContext("2d");
+  g.fillStyle = "#0b1220";
+  g.fillRect(0, 0, c.width, c.height);
+  if (!v3dPhoto) {
+    g.font = "40px -apple-system, system-ui, sans-serif";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("📷", c.width / 2, c.height * 0.42);
+    return;
+  }
+  const s = Math.max(c.width / v3dPhoto.width, c.height / v3dPhoto.height);
+  const dw = v3dPhoto.width * s, dh = v3dPhoto.height * s;
+  g.drawImage(v3dPhoto, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+}
+
+let v3dPhoto = null;
+function openView3D(snap, photo) {
+  if (!snap) {
+    // 3D-Button: letztes Capture (inkl. Foto), solange kein neues gemacht wurde — sonst Live-Momentaufnahme
+    if (lastCaptureSnap) { snap = lastCaptureSnap; photo = capturePhotoCanvas; }
+    else {
+      snap = lastSnapshot;
+      photo = streaming && video.readyState >= 2 && video.videoWidth ? grabVideoTo(livePhotoCanvas) : null;
+    }
+  }
+  if (!snap || snap.objects.length === 0) {
     showToast("Erst Marker erfassen!");
     return;
   }
-  v3dScene = buildScene3D(lastSnapshot);
-  // Standard-Ansicht: 3D-Iso (zeigt alle Würfel + Kamera-Frustum sauber aus 3/4-Perspektive)
-  v3dAz = 34;
-  v3dEl = 28;
-  v3dZoom = 1.0;
+  v3dPhoto = photo && photo.width ? photo : null;
+  drawHomeThumb();
+  v3dScene = buildScene3D(snap);
   v3dOpen = true;
   view3dOverlay.classList.add("open");
-  document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b.dataset.preset === "iso"));
-  document.querySelectorAll(".v3d-pill.plane").forEach(b => b.classList.toggle("active", b.dataset.plane === v3dRefPlane));
+  // Standard-Ansicht: exakt aus Sicht der echten Kamera (deckungsgleich mit dem Standbild), danach frei drehbar
+  v3dAnim = null;
+  v3dView = viewForPreset("cam");
+  v3dAtCamPose = Boolean(v3dView && v3dView.isCam);
+  v3dFadeT0 = performance.now();
+  setPresetActive(v3dAtCamPose ? "cam" : "iso");
+  // Standard je Öffnen: Mittelpunkte-Dreieck (falls 3 Würfel), Kamera & Hilfslinien aus
+  v3dAngleMode = applyAngleMode("tri");
   btn3dDeltas.classList.toggle("active", v3dShowDeltas);
   btn3dCam.classList.toggle("active", v3dShowCam);
+  btn3dAxes.classList.toggle("active", v3dShowAxes);
+  btnClose3D.textContent = streaming ? "‹ Live" : "‹ Zurück";
   renderView3DCards(v3dScene);
   renderView3D();
-  requestAnimationFrame(renderView3D);
-  setTimeout(() => { if (v3dOpen) renderView3D(); }, 80);
 }
 
 function closeView3D() {
   v3dOpen = false;
+  v3dAnim = null;
+  if (v3dRaf !== null) { cancelAnimationFrame(v3dRaf); v3dRaf = null; }
   view3dOverlay.classList.remove("open");
+  // Kein Standbild im Hauptmodus: zurück heißt direkt Live-Kamera
+  if (capturePhase === "captured") resetCaptureUI();
+  v3dPhoto = null;
   if (streaming && capturePhase === "idle") {
     lastDetectMs = 0;
     scheduleNextLoop(0);
   }
 }
 
-btnView3D.addEventListener("click", openView3D);
+btnView3D.addEventListener("click", () => openView3D());
 btnClose3D.addEventListener("click", closeView3D);
-window.addEventListener("resize", () => { if (v3dOpen) renderView3D(); });
+window.addEventListener("resize", () => { if (v3dOpen) requestV3dRender(); });
 
-document.querySelectorAll(".v3d-pill[data-preset]").forEach(btn => {
+document.querySelectorAll("#v3dViewSeg button").forEach(btn => {
   btn.addEventListener("click", () => {
     const p = btn.dataset.preset;
-    if (p === "cam" && v3dScene) {
-      const refObj = v3dScene.snap.objects[0];
-      v3dAz = Number.isFinite(refObj.azim) ? refObj.azim : 34;
-      v3dEl = Number.isFinite(refObj.elev) ? clamp(refObj.elev, 5, 78) : 28;
-      v3dZoom = 1.0;
-    }
-    if (p === "iso")   { v3dAz = 34; v3dEl = 28; v3dZoom = 1.0; }
-    if (p === "top")   { v3dAz = 0;  v3dEl = 88; v3dZoom = 1.05; }
-    if (p === "front") { v3dAz = 0;  v3dEl = 4;  v3dZoom = 1.05; }
-    if (p === "right") { v3dAz = 90; v3dEl = 4;  v3dZoom = 1.05; }
-    document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.toggle("active", b === btn));
-    renderView3D();
+    animateViewTo(viewForPreset(p));
+    setPresetActive(p);
   });
 });
+btn3dHome.addEventListener("click", goHomeView);
 
-document.querySelectorAll(".v3d-pill.plane").forEach(btn => {
+document.querySelectorAll("#v3dAngleSeg button").forEach(btn => {
   btn.addEventListener("click", () => {
-    v3dRefPlane = btn.dataset.plane || "none";
-    document.querySelectorAll(".v3d-pill.plane").forEach(b => b.classList.toggle("active", b === btn));
+    if (btn.disabled) return;
+    v3dAngleMode = applyAngleMode(btn.dataset.angle);
     if (v3dScene) renderView3DCards(v3dScene);
-    renderView3D();
+    requestV3dRender();
   });
 });
 
-btn3dDeltas.addEventListener("click", () => {
-  v3dShowDeltas = !v3dShowDeltas;
-  btn3dDeltas.classList.toggle("active", v3dShowDeltas);
-  renderView3D();
+const bindV3dToggle = (btn, get, set) => btn.addEventListener("click", () => {
+  set(!get());
+  btn.classList.toggle("active", get());
+  requestV3dRender();
 });
-btn3dCam.addEventListener("click", () => {
-  v3dShowCam = !v3dShowCam;
-  btn3dCam.classList.toggle("active", v3dShowCam);
-  renderView3D();
-});
+bindV3dToggle(btn3dDeltas, () => v3dShowDeltas, v => { v3dShowDeltas = v; });
+bindV3dToggle(btn3dCam, () => v3dShowCam, v => { v3dShowCam = v; });
+bindV3dToggle(btn3dAxes, () => v3dShowAxes, v => { v3dShowAxes = v; });
 
 // Versehentliches Safari-Browser-Zoomen (Pinch / Gesture) außerhalb des 3D-Canvas blockieren
 for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 }
 
-// Touch-Orbit (1 Finger, natürliche Wischrichtung) & Pinch-Zoom (2 Finger) + Mausrad
+// Interaktion verlässt die exakte Kamerasicht (Foto wird ausgeblendet)
+function leaveCamPose() {
+  v3dAnim = null;
+  if (v3dAtCamPose) {
+    v3dAtCamPose = false;
+    setPresetActive(null);
+  }
+}
+
+function v3dDolly(factor) {
+  if (!v3dView || !v3dScene) return;
+  const len = Math.hypot(v3dView.o[0], v3dView.o[1], v3dView.o[2]) || 1;
+  const target = clamp(len * factor, v3dScene.cubeSize * 1.3, v3dScene.span * 14);
+  const k = target / len;
+  v3dView = { ...v3dView, o: v3dView.o.map(v => v * k) };
+}
+
+// Touch: 1 Finger = Orbit um die Szenenmitte (Gier um Welt-Z, Nicken um Kamera-Rechts), 2 Finger = Pinch-Zoom + Verschieben
 view3dCanvas.addEventListener("pointerdown", e => {
   view3dCanvas.setPointerCapture(e.pointerId);
   v3dPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (v3dPointers.size === 1) {
-    v3dDragStart = { x: e.clientX, y: e.clientY, az: v3dAz, el: v3dEl };
+    v3dDragLast = { x: e.clientX, y: e.clientY };
     v3dPinchStart = null;
-  } else if (v3dPointers.size === 2) {
+    const now = performance.now();
+    if (now - v3dLastTap < 300) {
+      goHomeView();
+      v3dLastTap = 0;
+    } else {
+      v3dLastTap = now;
+    }
+  } else if (v3dPointers.size === 2 && v3dView) {
     const pts = Array.from(v3dPointers.values());
-    v3dPinchStart = { dist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y), zoom: v3dZoom };
-    v3dDragStart = null;
+    v3dPinchStart = {
+      dist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
+      mid: [(pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2],
+      o: v3dView.o.slice(),
+      T: v3dView.T.slice(),
+    };
+    v3dDragLast = null;
   }
 });
 view3dCanvas.addEventListener("pointermove", e => {
-  if (!v3dPointers.has(e.pointerId)) return;
+  if (!v3dPointers.has(e.pointerId) || !v3dView) return;
   v3dPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (v3dPointers.size === 2 && v3dPinchStart) {
     const pts = Array.from(v3dPointers.values());
     const d = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    const mid = [(pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2];
     if (v3dPinchStart.dist > 10) {
-      v3dZoom = clamp(v3dPinchStart.zoom * (d / v3dPinchStart.dist), 0.35, 3.8);
-      renderView3D();
+      leaveCamPose();
+      v3dView = { ...v3dView, o: v3dPinchStart.o.slice(), T: v3dPinchStart.T.slice() };
+      v3dDolly(v3dPinchStart.dist / Math.max(d, 1));
+      // Verschieben: Pivot in der Bildebene mitführen (Maßstab = Tiefe / Brennweite)
+      const { W, H } = v3dCanvasSize();
+      const depth = Math.max(1, -v3dView.o[2]);
+      const k = depth / v3dFocal(W, H);
+      const dx = (mid[0] - v3dPinchStart.mid[0]) * k, dy = (mid[1] - v3dPinchStart.mid[1]) * k;
+      const { right, up } = v3dView;
+      v3dView.T = [
+        v3dView.T[0] - right[0] * dx + up[0] * dy,
+        v3dView.T[1] - right[1] * dx + up[1] * dy,
+        v3dView.T[2] - right[2] * dx + up[2] * dy,
+      ];
+      requestV3dRender();
     }
-  } else if (v3dPointers.size === 1 && v3dDragStart) {
-    v3dAz = v3dDragStart.az - (e.clientX - v3dDragStart.x) * 0.55;
-    v3dEl = clamp(v3dDragStart.el + (e.clientY - v3dDragStart.y) * 0.45, -80, 88);
-    document.querySelectorAll(".v3d-pill[data-preset]").forEach(b => b.classList.remove("active"));
-    renderView3D();
+  } else if (v3dPointers.size === 1 && v3dDragLast) {
+    const dx = e.clientX - v3dDragLast.x, dy = e.clientY - v3dDragLast.y;
+    if (Math.abs(dx) + Math.abs(dy) < 1) return;
+    v3dDragLast = { x: e.clientX, y: e.clientY };
+    leaveCamPose();
+    const yaw = -dx * 0.0096, pitch = -dy * 0.0079;
+    const Z = [0, 0, 1];
+    let { right, up, fwd } = v3dView;
+    right = rotAxis(right, Z, yaw); up = rotAxis(up, Z, yaw); fwd = rotAxis(fwd, Z, yaw);
+    const up2 = rotAxis(up, right, pitch), fwd2 = rotAxis(fwd, right, pitch);
+    // Nicht über den Pol kippen
+    if (Math.abs(fwd2[2]) < 0.995 || Math.abs(fwd2[2]) < Math.abs(fwd[2])) { up = up2; fwd = fwd2; }
+    v3dView = { ...v3dView, right: vNorm(right), up: vNorm(up), fwd: vNorm(fwd) };
+    requestV3dRender();
   }
 });
 const endV3dPtr = e => {
   v3dPointers.delete(e.pointerId);
   if (v3dPointers.size < 2) v3dPinchStart = null;
-  if (v3dPointers.size === 0) v3dDragStart = null;
+  if (v3dPointers.size === 1) {
+    const p = Array.from(v3dPointers.values())[0];
+    v3dDragLast = { x: p.x, y: p.y };
+  }
+  if (v3dPointers.size === 0) v3dDragLast = null;
 };
 view3dCanvas.addEventListener("pointerup", endV3dPtr);
 view3dCanvas.addEventListener("pointercancel", endV3dPtr);
 view3dCanvas.addEventListener("wheel", e => {
   e.preventDefault();
-  v3dZoom = clamp(v3dZoom * (e.deltaY > 0 ? 0.9 : 1.11), 0.35, 3.8);
-  renderView3D();
+  leaveCamPose();
+  v3dDolly(e.deltaY > 0 ? 1.11 : 0.9);
+  requestV3dRender();
 }, { passive: false });
 
 // --------- Kamera-Brennweiten-Kalibrierung (1 Würfel + Soll-Abstand in mm) ---------
@@ -3626,6 +4533,7 @@ function getCalibratedDistMm(o, cubeSize) {
 
 function updateCalInfo() {
   if (!calInfoEl) return;
+  const lastSnapshot = reportSnap();
   if (!lastSnapshot || lastSnapshot.objects.length === 0) {
     calInfoEl.textContent = "Noch keine Messung vorhanden — erst 1 Würfel erfassen.";
     return;
@@ -3642,6 +4550,7 @@ function updateCalInfo() {
 
 if (btnCalibrate) {
   btnCalibrate.addEventListener("click", () => {
+    const lastSnapshot = reportSnap();
     if (!lastSnapshot || lastSnapshot.objects.length === 0) {
       showToast("Erst 1 Würfel per Capture erfassen!");
       return;
@@ -3674,9 +4583,41 @@ if (btnCalReset) {
 }
 
 // --------- Vollbild-Höhe für iOS Standalone PWA (beseitigt schwarzen Balken unten) ---------
+// iOS-PWA meldet env(safe-area-inset-*) teils als 0 → UI rutscht unter Dynamic Island. Messen & ggf. Gerätewert einsetzen.
+function measureSafeArea() {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;"
+    + "padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const res = { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+  probe.remove();
+  return res;
+}
+
+function syncSafeArea(isStandalone) {
+  const root = document.documentElement.style;
+  const env = measureSafeArea();
+  let top = env.top, bottom = env.bottom;
+  const portrait = window.innerHeight >= window.innerWidth;
+  const longSide = Math.max(window.screen.width || 0, window.screen.height || 0);
+  if (isStandalone && portrait) {
+    if (top < 20) top = longSide >= 852 ? 62 : longSide >= 812 ? 50 : 20;
+    if (bottom < 1 && longSide >= 812) bottom = 34;
+    root.setProperty("--sat", `${top}px`);
+    root.setProperty("--sab", `${bottom}px`);
+  } else {
+    root.removeProperty("--sat");
+    root.removeProperty("--sab");
+  }
+  const info = document.getElementById("safeAreaInfo");
+  if (info) info.textContent = `Safe-Area: oben ${top}px / unten ${bottom}px (iOS meldet ${env.top}/${env.bottom}px)${isStandalone ? " · PWA" : ""}`;
+}
+
 function syncAppHeight() {
   const isStandalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
   document.documentElement.classList.toggle("standalone", isStandalone);
+  syncSafeArea(isStandalone);
   if (isStandalone) {
     const isPortrait = window.innerHeight >= window.innerWidth;
     const physH = isPortrait
@@ -3686,7 +4627,7 @@ function syncAppHeight() {
       document.documentElement.style.setProperty("--standalone-h", `${Math.round(physH)}px`);
     }
   }
-  if (v3dOpen) renderView3D();
+  if (v3dOpen) requestV3dRender();
 }
 syncAppHeight();
 window.addEventListener("resize", syncAppHeight);
